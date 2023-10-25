@@ -122,25 +122,20 @@ def to_matrix(H):
     matrix_subs.update({Dagger(op): Dagger(mat) for op, mat in matrix_subs.items()})
     matrix_subs[sympy.physics.quantum.IdentityOperator()] = sympy.eye(2**len(fermions))
 
+    # Generate basis
+    basis = [(sympy.S.One,)]
+    for n in range(len(fermions)):
+        basis.extend(list(combinations(fermions, n + 1)))
+    reversed_basis = list(reversed(basis))
+    reversed_basis[-1] = (sympy.S.Zero,)
 
-    def basis(fermions):
-        """Returns the basis of the Hilbert space of the system.
-        
-        Args:
-            fermions (list): list of fermionic operators
-        """
-        basis = []
-        n_ops = len(fermions)
-        for n in range(n_ops):
-            combos = combinations(fermions, n + 1)
-            basis.extend(combos)
-        states = [sympy.S.One]
-        states.extend([sympy.Mul(*ops) for ops in basis])
-        return states
-    
-    basis = basis(fermions)
-    basis_matrix = [Dagger(b) * b for b in basis]
-    basis_matrix = [b.subs(matrix_subs, simultaneous=True).expand() for b in basis_matrix]
-    indices = [np.array(b.diagonal(), dtype=int)@np.arange(2**len(fermions)) for b in basis_matrix]]
+    basis_matrices = []
+    for b, nb in zip(basis, reversed_basis):
+        expr = [Dagger(op) * op for op in b]
+        expr.extend([sympy.physics.quantum.IdentityOperator()-Dagger(op) * op for op in nb])
+        basis_matrices.append(sympy.Mul(*expr).expand())
+    basis_matrices = [b.subs(matrix_subs, simultaneous=True).expand() for b in basis_matrices]
+    basis_order = [np.nonzero(np.array(b.diagonal(), dtype=int)[0])[0][0] for b in basis_matrices]
+    effective_basis = [sympy.Mul(*basis[i]) for i in np.argsort(basis_order)]
 
-    return H.subs(matrix_subs, simultaneous=True).expand(), basis(fermions)
+    return H.subs(matrix_subs, simultaneous=True).expand(), effective_basis
