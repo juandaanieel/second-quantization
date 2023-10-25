@@ -11,7 +11,7 @@ from sympy.physics.quantum.operatorordering import normal_ordered_form
 from pymablock import block_diagonalize # to install follow https://pymablock.readthedocs.io/en/latest/#installation
 
 # Computing matrix elements
-# from second_quantization import to_matrix
+from second_quantization import to_matrix
 
 # %%
 symbols = sympy.symbols(
@@ -55,34 +55,17 @@ display(sympy.Eq(sympy.Symbol('H_{T}'), H_T))
 
 H = H_abs + H_dot + H_T
 # %%
-
 H_matrix, fermions = to_matrix(H)
-
-basis_matrix = [Dagger(b) * b for b in fermions]
-
-
-basis_matrix = [b.subs(matrix_subs, simultaneous=True).expand().diagonal() for b in basis_matrix]
-H_matrix.is_hermitian
-
 # %%
-H_matrix.diagonal()
-# -
-
-int(np.array([element is sympy.Rational(0) for element in H_matrix.diagonal().subs({E_L: 1, E_R: 1, U: 10, n_C: 1})]))
-
-# %%
-subspace_indices = np.concatenate([np.zeros(1), np.ones(63)])
-subspace_indices
-
+occ_subspace = [c_up, c_down]
+subspace_indices = [int(not(element in occ_subspace)) for element in fermions]
 # %%
 H_tilde = block_diagonalize(H_matrix, subspace_indices=subspace_indices, symbols=[t_L, t_R, Gamma_L, Gamma_R], algorithm='general')[0]
-# -
-
-H_tilde[0, 0, 0, 0, 0, 0]
-
+# %%
+H_tilde[0, 0, 1, 1, 0, 0]
 # %%
 simplified_Htilde002211 = sympy.simplify(H_tilde[0, 0, 2, 2, 1, 1])
-# -
+# %%
 
 simplified_Htilde002211.factor()
 
