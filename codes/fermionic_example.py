@@ -60,21 +60,25 @@ H = H_abs + H_dot + H_T
 %%time
 H_matrix, basis = to_matrix(H)
 H_matrix = H_matrix.subs(t_L_complex, t_L * sympy.exp(sympy.I * phi))
+H_matrix = H_matrix.rewrite(sympy.cos).expand()
 assert H_matrix.is_hermitian
+# %%
+H_matrix
+
 # %%
 # Choose the ground state
 
 # For n=0
-occ_subspace = [sympy.S.One]
+# occ_subspace = [sympy.S.One]
 # For n=1
 # ???
 # For n=2
-# occ_subspace = [c_up, c_down]
+occ_subspace = [c_up, c_down]
 
 subspace_indices = [int(not(element in occ_subspace)) for element in basis]
 # %%
 %%time
-H_tilde = block_diagonalize(H_matrix, subspace_indices=subspace_indices, symbols=[t_L, t_R, Gamma_L, Gamma_R], algorithm='expanded')[0]
+H_tilde = block_diagonalize(H_matrix, subspace_indices=subspace_indices, symbols=[t_L, t_R, Gamma_L, Gamma_R], algorithm='general')[0]
 # %%
 %%time
 correction = H_tilde[0, 0, 2, 2, 1, 1]
