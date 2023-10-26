@@ -19,7 +19,9 @@ symbols = sympy.symbols(
     positive=True
 )
 
+
 U, n_C, t_L, t_R, phi, Gamma_L, Gamma_R, E_L, E_R = symbols
+t_L_complex = sympy.symbols(r"t_Lc", real=False, commutative=True) # will replace t_L * exp(I * phi)
 
 # %%
 # Define 2nd quantization operators
@@ -44,11 +46,11 @@ H_abs =  onsite_abs + gammas_abs + Dagger(gammas_abs)
 display(sympy.Eq(sympy.Symbol('H_{ABS}'), H_abs))
 print(' ')
 
-H_dot = U * (n - n_C)**2 / 2
+H_dot = U * (n - n_C)**2
 display(sympy.Eq(sympy.Symbol('H_{dot}'), H_dot))
 print(' ')
 
-H_TL = t_L * sympy.exp(sympy.I * phi) * (Dagger(c_up) * d_L_up + Dagger(c_down) * d_L_down)
+H_TL = t_L_complex * (Dagger(c_up) * d_L_up + Dagger(c_down) * d_L_down)
 H_TR = t_R * (Dagger(c_up) * d_R_up + Dagger(c_down) * d_R_down)
 H_T = H_TL + H_TR + Dagger(H_TL + H_TR)
 display(sympy.Eq(sympy.Symbol('H_{T}'), H_T))
@@ -57,7 +59,7 @@ H = H_abs + H_dot + H_T
 # %%
 %%time
 H_matrix, basis = to_matrix(H)
-H_matrix = H_matrix.rewrite(sympy.cos)
+H_matrix = H_matrix.subs(t_L_complex, t_L * sympy.exp(sympy.I * phi))
 assert H_matrix.is_hermitian
 # %%
 # Choose the ground state
@@ -75,11 +77,11 @@ subspace_indices = [int(not(element in occ_subspace)) for element in basis]
 H_tilde = block_diagonalize(H_matrix, subspace_indices=subspace_indices, symbols=[t_L, t_R, Gamma_L, Gamma_R], algorithm='expanded')[0]
 # %%
 %%time
-result = H_tilde[0, 0, 2, 2, 1, 1]
-display(result)
+correction = H_tilde[0, 0, 2, 2, 1, 1]
+display(correction)
 # %%
 %%time
-trace = sum([result[i, i] for i in range(result.shape[0])])
+trace = sum([correction[i, i] for i in range(correction.shape[0])])
 # %%
 current = sympy.diff(trace, phi).expand()
 prefactor = Gamma_L * Gamma_R * t_L ** 2 * t_R ** 2 / (E_L * E_R) * 2 * sympy.sin(phi) * sympy.cos(phi)
