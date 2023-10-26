@@ -4,8 +4,6 @@ import numpy as np
 import sympy  # install as pip install git+https://github.com/sympy/sympy.git -> IMPORTANT!!
 from sympy.physics.quantum.fermion import FermionOp
 from sympy.physics.quantum import Dagger
-from sympy.core.singleton import S
-from sympy.physics.quantum.operatorordering import normal_ordered_form
 
 # Perturbation theory
 from pymablock import block_diagonalize # to install follow https://pymablock.readthedocs.io/en/latest/#installation
@@ -44,31 +42,50 @@ onsite_abs = E_L * n_L + E_R * n_R
 gammas_abs = Gamma_L * Dagger(d_L_up) * Dagger(d_L_down) + Gamma_R * Dagger(d_R_up) * Dagger(d_R_down)
 H_abs =  onsite_abs + gammas_abs + Dagger(gammas_abs)
 display(sympy.Eq(sympy.Symbol('H_{ABS}'), H_abs))
+print(' ')
 
-H_dot = (U * (n - n_C)**2)
+H_dot = U * (n - n_C)**2 / 2
 display(sympy.Eq(sympy.Symbol('H_{dot}'), H_dot))
+print(' ')
 
-H_TL = t_L * sympy.exp(1j * phi) * (Dagger(c_up) * d_L_up + Dagger(c_down) * d_L_down)
+H_TL = t_L * sympy.exp(sympy.I * phi) * (Dagger(c_up) * d_L_up + Dagger(c_down) * d_L_down)
 H_TR = t_R * (Dagger(c_up) * d_R_up + Dagger(c_down) * d_R_down)
 H_T = H_TL + H_TR + Dagger(H_TL + H_TR)
 display(sympy.Eq(sympy.Symbol('H_{T}'), H_T))
 
 H = H_abs + H_dot + H_T
 # %%
-H_matrix, fermions = to_matrix(H)
+%%time
+H_matrix, basis = to_matrix(H)
+H_matrix = H_matrix.rewrite(sympy.cos)
+assert H_matrix.is_hermitian
 # %%
-occ_subspace = [c_up, c_down]
-subspace_indices = [int(not(element in occ_subspace)) for element in fermions]
-# %%
-H_tilde = block_diagonalize(H_matrix, subspace_indices=subspace_indices, symbols=[t_L, t_R, Gamma_L, Gamma_R], algorithm='general')[0]
-# %%
-H_tilde[0, 0, 1, 1, 0, 0]
-# %%
-simplified_Htilde002211 = sympy.simplify(H_tilde[0, 0, 2, 2, 1, 1])
-# %%
+# Choose the ground state
 
-simplified_Htilde002211.factor()
+# For n=0
+occ_subspace = [sympy.S.One]
+# For n=1
+# ???
+# For n=2
+# occ_subspace = [c_up, c_down]
 
-eigenvalues = simplified_Htilde002211[0] + simplified_Htilde002211[3]
-
-eigenvalues.factor()
+subspace_indices = [int(not(element in occ_subspace)) for element in basis]
+# %%
+%%time
+H_tilde = block_diagonalize(H_matrix, subspace_indices=subspace_indices, symbols=[t_L, t_R, Gamma_L, Gamma_R], algorithm='expanded')[0]
+# %%
+%%time
+result = H_tilde[0, 0, 2, 2, 1, 1]
+display(result)
+# %%
+%%time
+trace = sum([result[i, i] for i in range(result.shape[0])])
+# %%
+current = sympy.diff(trace, phi).expand()
+prefactor = Gamma_L * Gamma_R * t_L ** 2 * t_R ** 2 / (E_L * E_R) * 2 * sympy.sin(phi) * sympy.cos(phi)
+result = (current / prefactor).expand()
+# %%
+result = result.together().factor()
+# %%
+result
+# %%
