@@ -109,16 +109,21 @@ for index in np.where(evals_H0 == np.min(evals_H0))[0]:
     display(basis[index])
 
 # %%
-# Choose the ground state
-
+# Possible ground states
 # For n=0
-# ground_state_n0 = [sympy.S.One]
+ground_state_n0 = [sympy.S.One]
 # For n=1
-# ground_state_n1 = [c_up, c_down] 
+ground_state_n1 = [c_up, c_down] 
 # For n=2
 ground_state_n2 = [c_up * c_down]
+# %%
+# Choose ground state
+ground_state = ground_state_n2
 
-subspace_indices = [int(not(element in ground_state_n2)) for element in basis]
+print(f'Ground state is: ')
+for element in ground_state:
+    display(element)
+subspace_indices = [int(not(element in ground_state)) for element in basis]
 # %%
 %%time
 H_tilde = block_diagonalize(H_matrix, subspace_indices=subspace_indices, symbols=[t_L, t_R])[0]
@@ -175,14 +180,6 @@ simplified_result = simplify_fraction(result)
 simplified_result
 
 # %%
-# I_1
-simplified_result
-
-# %%
-# I_2
-simplified_result
-
-# %%
 prefactor
 
 # %% [markdown]
@@ -211,7 +208,7 @@ values = {
     E_L: E_L_value,
     phi: np.pi/4}
 
-n_C_values = np.linspace(0, 2, 100)
+n_C_values = np.linspace(0, 4, 100)
 supercurrent_values = []
 for n_C_value in n_C_values:
     values.update({n_C: n_C_value})
@@ -247,15 +244,7 @@ display(sympy.Eq(sympy.Symbol('I_{c}(n=2)'), I_2))
 I_0.expand().factor()
 
 # %%
-I_2.expand().factor()
+I_1.expand().factor()
 
 # %%
 simplified_result.expand().factor()
-
-# %%
-# When computing I_0, the comparison only works with shifting nC
-
-simplified_result.subs(n_C, - n_C + 2).expand().factor()
-
-# %%
-I_0.equals(simplified_result.subs(n_C, - n_C + 2))
