@@ -112,11 +112,11 @@ for index in np.where(evals_H0 == np.min(evals_H0))[0]:
 # Choose the ground state
 
 # For n=0
-ground_state_n0 = [sympy.S.One]
+# ground_state_n0 = [sympy.S.One]
 # For n=1
 # ground_state_n1 = [c_up, c_down] 
 # For n=2
-# ground_state_n2 = [c_up * c_down]
+ground_state_n2 = [c_up * c_down]
 
 subspace_indices = [int(not(element in ground_state_n2)) for element in basis]
 # %%
@@ -232,9 +232,9 @@ plt.plot(n_C_values[1:], supercurrent_values[1:])
 # %%
 E_0 = U * n_C**2 / 2
 E_1 = (U * (1 - n_C)**2 / 2).expand()
-E_2 = (U * (2 - n_C)**2).expand()
+E_2 = (U * (2 - n_C)**2 / 2).expand()
 
-I_0 = 4 / ((E_1 - E_0 + E_L) * (E_2 - E_0) * (E_1 - E_0 + E_R)) + 2 / ((E_1 - E_0 + E_L) * (E_L + E_R) * (E_1 - E_0 + E_R))
+I_0 = 4/ ((E_1 - E_0 + E_L) * (E_2 - E_0) * (E_1 - E_0 + E_R)) + 2 / ((E_1 - E_0 + E_L) * (E_L + E_R) * (E_1 - E_0 + E_R))
 display(sympy.Eq(sympy.Symbol('I_{c}(n=0)'), I_0))
 
 I_1 = 1 / ((E_0 - E_1 + E_L) * (E_L + E_R) * (E_0 - E_1 + E_R)) + 1 / ((E_2 - E_1 + E_L) * (E_L + E_R) * (E_2 - E_1 + E_R))
@@ -244,12 +244,18 @@ I_2 = 4 / ((E_1 - E_2 + E_L) * (E_0 - E_2) * (E_1 - E_2 + E_R)) + 2 / ((E_1 - E_
 display(sympy.Eq(sympy.Symbol('I_{c}(n=2)'), I_2))
 
 # %%
-I_0.simplify()
+I_0.expand().factor()
 
 # %%
-simplified_result.simplify()
+I_2.expand().factor()
 
 # %%
-I_0.equals(simplified_result)
+simplified_result.expand().factor()
 
 # %%
+# When computing I_0, the comparison only works with shifting nC
+
+simplified_result.subs(n_C, - n_C + 2).expand().factor()
+
+# %%
+I_0.equals(simplified_result.subs(n_C, - n_C + 2))
