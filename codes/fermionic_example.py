@@ -1,5 +1,5 @@
 # %% [markdown]
-# # Alberto's project
+# # Supercurrent through a Quantum Dot
 
 # %%
 # Manipulating data
@@ -11,7 +11,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 
 # Perturbation theory
-from pymablock import block_diagonalize # to install follow https://pymablock.readthedocs.io/en/latest/#installation
+from pymablock import block_diagonalize # see https://pymablock.readthedocs.io
 
 # Computing matrix elements
 from second_quantization import to_matrix
@@ -60,29 +60,29 @@ n = Dagger(c_up) * c_up + Dagger(c_down) * c_down
 # %%
 # Define Hamiltonians
 
+# ABS Hamiltonian
 H_abs = 0
 for xi, E, f_up, f_down in zip(xis, Es, f_ups, f_downs):
     H_abs += xi - E + E * Dagger(f_up) * f_up + E * Dagger(f_down) * f_down
 display(sympy.Eq(sympy.Symbol('H_{ABS}'), H_abs))
 print(' ')
 
+# Quantum Dot Hamiltonian
 H_dot = U * (n - n_C)**2 / 2
 display(sympy.Eq(sympy.Symbol('H_{dot}'), H_dot))
 print(' ')
 
+# Interaction term with fermionic basis
 H_T = 0
 for t, d_up, d_down in zip(ts, d_ups, d_downs):
     H_T += t * (Dagger(c_up) * d_up + Dagger(c_down) * d_down)
 H_T += Dagger(H_T)
-display(sympy.Eq(sympy.Symbol('H_{T}'), H_T))
 
-H = H_abs + H_dot + H_T
-# %%
 # Bogoliubov coefficients
 us = u_L, u_R = sympy.symbols(r"u_L u_R", real=True, commutative=True, positive=True)
 vs = v_L, v_R = sympy.symbols(r"v_L v_R", real=True, commutative=True, positive=True)
 
-# Bogoliubov transformation
+# Bogoliubov transformation from d operators to f operators
 transformation_substitution = {d_down: u * f_down + v * Dagger(f_up)
     for u, v, d_down, d_up, f_down, f_up in zip(us, vs, d_downs, d_ups, f_downs, f_ups)}
 
@@ -92,10 +92,15 @@ transformation_substitution.update({d_up: u * f_up - v * Dagger(f_down)
 transformation_substitution.update({Dagger(key): Dagger(value) for key, value in transformation_substitution.items()})
 
 # Substitute coefficients so that H_T is in ABS basis
-H = H.subs(transformation_substitution).expand()
+H_T = H_T.subs(transformation_substitution).expand()
+display(sympy.Eq(sympy.Symbol('H_{T}'), H_T))
 
+# Total Hamiltonian
+H = H_abs + H_dot + H_T
 # %%
 %%time
+
+# Compute Hamiltonian in matrix form
 H_matrix, basis = to_matrix(H)
 
 # %%
@@ -129,7 +134,7 @@ ground_state_n2 = [c_up * c_down]
 # Choose ground state
 ground_state = ground_state_n0
 
-print(f'Ground state is: ')
+print(f'Ground state is: ') # Note: 1 is vaccuum, see `basis`
 for element in ground_state:
     display(element)
 subspace_indices = [int(not(element in ground_state)) for element in basis]
@@ -149,12 +154,6 @@ prefactor = Gamma_L * Gamma_R * t_L ** order_L * t_R ** order_R / (E_L * E_R) * 
 result = (current / prefactor).expand()
 # %%
 # Express Bogoliubov coefficients as functions of Gamma and E, avoiding square roots
-
-alpha_L, alpha_R  = sympy.symbols('alpha_L alpha_R', real=True, positive=True, commutative=True)
-
-u_L_subs, u_R_subs = sympy.cos(alpha_L), sympy.cos(alpha_R) # alpha = arctan(Gamma / xi)
-v_L_subs, v_R_subs = sympy.sin(alpha_L), sympy.sin(alpha_R)
-
 uv_subs = {u * v : Gamma / (2 * E) for u, v, Gamma, E in zip(us, vs, Gammas, Es)}
 u_subs = {u**2: (1 + xi / E) / 2 for u, xi, E in zip(us, xis, Es)}
 v_subs = {v**2: (1 - xi / E) / 2 for v, xi, E in zip(vs, xis, Es)}
@@ -162,6 +161,7 @@ v_subs = {v**2: (1 - xi / E) / 2 for v, xi, E in zip(vs, xis, Es)}
 
 # %%
 def simplify_fraction(expr):
+    """ Groups fractions by denominators and simplifies numerators."""
     expr = expr.expand()
     result = sympy.Add(*[term.factor() for term in expr.as_ordered_terms()])
 
@@ -185,13 +185,16 @@ def simplify_fraction(expr):
 simplified_result, fractions = simplify_fraction(result)
 
 # %%
-simplified_result
-
-# %%
 len(fractions)
 
 # %%
+simplified_result
+
+# %%
 prefactor
+
+# %%
+I_c = prefactor * simplified_result
 
 # %% [markdown]
 # ## Replacing numerical values
@@ -199,13 +202,13 @@ prefactor
 # %%
 %%time
 
-U_value = 5
+U_value = 10
 Gamma_L_value = 1
 Gamma_R_value = 1
-xi_L_value = 0.3
-xi_R_value = 0.3
-t_L_value = 0.5
-t_R_value = 0.5
+xi_L_value = 1
+xi_R_value = 1
+t_L_value = 0.1
+t_R_value = 0.1
 
 values = {
     U: U_value,
@@ -224,7 +227,7 @@ values = {
 
 numerical_prefactor = prefactor.subs(values)
 
-n_C_values = np.linspace(0, 2, 600)
+n_C_values = np.linspace(0, 2, 300)
 supercurrent_values = []
 for n_C_value in n_C_values:
     values.update({n_C: n_C_value})
@@ -239,13 +242,15 @@ ax.set_xlabel(r'$n_C$')
 ax.set_ylabel(r'$I_c$')
 ax.spines["right"].set_visible(False)
 ax.spines["top"].set_visible(False)
-ax.set_ylim(-4, 4)
+ax.set_ylim(-4, 10)
 
 # %% [markdown]
-# ## Results alberto had up to 4th order
-
-# %% [markdown]
-# ![image.png](attachment:093b5f9c-4880-4d05-adc8-6d0fa5ad2607.png)
+# ### Comparison to Gorm's results, up to 4th order
+#
+# I observe the following things:
+# * $I_c(n=0)$ matches perfectly Gorm's results
+# * $I_c(n=2)$ matches perfectly Gorm's results
+# * $I_c(n=1)$ disagrees slightly with Grom's results. It could be that his results have a typo, or that I chose the wrong ground state for the perturbation theory. However, both results share the fact that up to 4th order the critical current is symmetric with respect to $n_C=1$. Including 6th order corrections breaks the symmetry, but the analytical expression contains $\gg 49$ terms for $t_R^4t_L^2$.
 
 # %%
 I_0 = 4/ ((E_1 - E_0 + E_L) * (E_2 - E_0) * (E_1 - E_0 + E_R)) + 2 / ((E_1 - E_0 + E_L) * (E_L + E_R) * (E_1 - E_0 + E_R))
@@ -257,20 +262,3 @@ display(sympy.Eq(sympy.Symbol('I_{c}(n=1)'), I_1))
 
 I_2 = 4 / ((E_1 - E_2 + E_L) * (E_0 - E_2) * (E_1 - E_2 + E_R)) + 2 / ((E_1 - E_2 + E_L) * (E_L + E_R) * (E_1 - E_2 + E_R))
 display(sympy.Eq(sympy.Symbol('I_{c}(n=2)'), I_2))
-
-# %%
-I_1.subs(n_C, n_C + 1).expand().factor()
-
-# %%
-shifted = simplified_result.subs(n_C, n_C + 1)
-
-# %%
-shifted
-
-# %%
-I_1.expand().factor()
-
-# %%
-simplified_result
-
-# %%
