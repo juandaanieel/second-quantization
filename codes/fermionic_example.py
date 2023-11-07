@@ -148,7 +148,7 @@ order_R = 2
 correction = H_tilde[0, 0, order_L, order_R]
 # %%
 %%time
-trace = sympy.Add(*[correction[i, i].expand() for i in range(correction.shape[0])])
+trace = sympy.Trace(correction).doit().expand()
 current = sympy.diff(trace, phi)
 prefactor = Gamma_L * Gamma_R * t_L ** order_L * t_R ** order_R / (E_L * E_R) * 2 * sympy.sin(phi) * sympy.cos(phi)
 result = (current / prefactor).expand()
