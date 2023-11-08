@@ -52,7 +52,7 @@ def many_body_matrix(symbolic_ham, basis):
     for term, n_coeff in dict_expr.items():
         # initialize symbolic coefficient and matrix
         sym_coef = S.One
-        matrix = np.eye(2**n_total, dtype=int)
+        matrix = np.eye(2**n_total, dtype=complex)
         
         # iterate over all symbols of the expresion
         # handle constant terms
