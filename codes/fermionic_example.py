@@ -104,6 +104,23 @@ H = H_abs + H_dot + H_T
 H_matrix, basis = to_matrix(H)
 
 # %%
+H_matrix
+
+# %%
+from second_approach import many_body_matrix
+
+# %%
+%%time
+H_matrix_juan = many_body_matrix(H.expand(), [c_up, c_down, *f_downs, *f_ups])
+H_matrix_juan = sympy.Add(*[key * sympy.Matrix(value) for key, value in H_matrix_juan.items()])
+
+# %%
+H_matrix_juan
+
+# %%
+H_matrix = H_matrix_juan
+
+# %%
 H_matrix = H_matrix.subs({t_L_complex: t_L * sympy.cos(phi) + t_L * sympy.I * sympy.sin(phi)})
 # %%
 E_0, E_1, E_2 = sympy.symbols(r"E_0 E_1 E_2", real=True, commutative=True, positive=True)
@@ -115,6 +132,44 @@ E_2_value = (U * (2 - n_C)**2 / 2).expand()
 H_matrix = H_matrix.subs({E_2_value: E_2})
 H_matrix = H_matrix.subs({E_1_value: E_1})
 H_matrix = H_matrix.subs({E_0_value: E_0})
+
+# %%
+U_value = 5
+Gamma_L_value = 1
+Gamma_R_value = 1
+xi_L_value = 2
+xi_R_value = 1
+t_L_value = 0.2
+t_R_value = 0.1
+
+values = {
+    U: U_value,
+    Gamma_L: Gamma_L_value,
+    Gamma_R: Gamma_R_value,
+    t_L: t_L_value,
+    t_R: t_R_value,
+    xi_L: xi_L_value,
+    xi_R: xi_R_value,
+    E_R: np.sqrt(Gamma_R_value**2 + xi_R_value**2),
+    E_L: np.sqrt(Gamma_L_value**2 + xi_L_value**2),
+    E_0: E_0_value,
+    E_1: E_1_value,
+    E_2: E_2_value,
+    n_C: 1,
+    phi: np.pi/4}
+
+n_C_values = np.linspace(0, 2, 10)
+eigenvalues = []
+for n_C_value in n_C_values:
+    values.update({n_C: n_C_value})
+    eigenvalues.append(np.array(H_matrix.diagonal().subs(values), dtype=complex)[0])
+
+eigenvalues = np.array(eigenvalues).real
+
+# %%
+plt.plot(n_C_values, eigenvalues, '-', alpha=0.5);
+plt.ylabel('$E_0$')
+plt.xlabel(r'$n_C$')
 
 # %% [markdown]
 # ## Perturbation theory
