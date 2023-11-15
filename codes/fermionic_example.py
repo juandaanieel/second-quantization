@@ -107,18 +107,31 @@ H_matrix, basis = to_matrix(H)
 H_matrix
 
 # %%
-from second_approach import many_body_matrix
+from fockspace import FockSpace
+from sympy.physics.quantum.operatorordering import normal_ordered_form
+
+# definitions
+names = [
+    'c_{\\uparrow}', 'c_{\\downarrow}',
+    'f_{L, \\uparrow}', 'f_{R, \\uparrow}',
+    'f_{L, \\downarrow}', 'f_{R, \\downarrow}'
+]
+
+H = normal_ordered_form(H.expand(), independent=True)
 
 # %%
 %%time
-H_matrix_juan = many_body_matrix(H.expand(), [c_up, c_down, *f_downs, *f_ups])
-H_matrix_juan = sympy.Add(*[key * sympy.Matrix(value) for key, value in H_matrix_juan.items()])
+# build numerical Hamiltonian
+FS = FockSpace()
+FS.add_fermion(names)
+FS.finalize()
+terms = FS.matrix_form_numeric(H)
 
 # %%
-H_matrix_juan
-
-# %%
-H_matrix = H_matrix_juan
+%%time
+# back to sympy is slow
+H_matrix = sympy.Add(*[key * sympy.Matrix(value) for key, value in terms.items()])
+H_matrix = sympy.nsimplify(H_matrix)
 
 # %%
 H_matrix = H_matrix.subs({t_L_complex: t_L * sympy.cos(phi) + t_L * sympy.I * sympy.sin(phi)})
