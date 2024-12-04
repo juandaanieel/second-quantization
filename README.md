@@ -30,3 +30,30 @@ $$
 
 1. We transform the matrix to a Pauli string using [this code](https://gitlab.kwant-project.org/qt/time-dependent-pt/-/blob/tunable-coupler-note/codes/pauli_decomposition.py).
 2. We identify the different terms in the Pauli string using the first three equations [here](https://en.wikipedia.org/wiki/Jordan–Wigner_transformation).
+
+### Coding aspect
+
+We want to develop the following functions:
+
+```python
+
+def basis_operators(
+    operators: list[sympy.Expr],
+    fermion_ordering: list[sympy.physics.quantum.Fermion]
+    )
+    -> dict[sympy.expr, numpy.ndarray | scipy.sparse.array]:
+
+def to_matrix(
+    expr: sympy.expr
+    basis_operators: [sympy.expr, numpy.ndarray | scipy.sparse.array]
+    )
+    -> dict[sympy.expr, numpy.ndarray | scipy.sparse.array]:
+
+def to_operators(
+    matrix: numpy.ndarray | scipy.sparse.array,
+    operators: list[sympy.Expr],
+    fermion_ordering: list[sympy.physics.quantum.Fermion]
+    )
+    -> sympy.expr:
+
+```
