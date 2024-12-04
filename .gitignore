@@ -50,3 +50,10 @@ nosetests.xml
 coverage.xml
 *.cover
 .hypothesis/
+
+# Version file
+_version.py
+
+# pixi environments
+.pixi
+*.egg-info
