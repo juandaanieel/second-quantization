@@ -29,7 +29,7 @@ sigma_minus = np.array([[0, 1],
 def basis_operators(
         operators: list[sympy.Expr],
         sparse: bool
-        )-> dict[sympy.expr, np.ndarray | scipy.sparse.array]:
+        )-> dict[sympy.Expr, np.ndarray | scipy.sparse.csr.csr_matrix:]:
     """
     Transform from second quantized operators to matrix representation in the Fock-space.
     Note that `operators` does not require its elements to be `FermionOp`.
@@ -51,9 +51,9 @@ def basis_operators(
     return basis_operators
 
 def to_matrix(
-        expression: sympy.expr,
-        basis_operators: list[sympy.Expr, np.ndarray | scipy.sparse.array]
-        )-> dict[sympy.expr, np.ndarray | scipy.sparse.array]:
+        expression: sympy.Expr,
+        basis_operators: list[sympy.Expr, np.ndarray | scipy.sparse.csr.csr_matrix]
+        )-> dict[sympy.Expr, np.ndarray | scipy.sparse.csr.csr_matrix]:
     """
     Transforms a sympy expression containing fermionic operators to a dictionary the matrix representation of each term.
     """
@@ -88,10 +88,43 @@ def to_matrix(
             dict_matrices[symbol] = term_mat
     return dict_matrices
 
-def to_operators(
-    matrix: np.ndarray | scipy.sparse.array,
-    operators: list[sympy.Expr],
-    fermion_ordering: list[sympy.physics.quantum.Fermion]
-    )-> sympy.Expr:
 
-    pass
+def to_operators(
+    matrix: np.ndarray | scipy.sparse.csr.csr_matrix,
+    basis: list[sympy.Expr],
+    )-> sympy.Expr:
+    """
+    Convert a matrix into a normal ordered operator expression.
+    """
+
+    pauli_string = PauliDecomposition(matrix)
+    term = S.One
+
+    for string, prefactor in pauli_string.items():
+        _term = S.One * prefactor
+        _prefactor_exponent = S.One
+
+        for i, key in enumerate(string):
+            
+            j = i - 1
+            if j >= 0:
+                _prefactor_exponent *= 2 * Dagger(basis[j]) * basis[j] - 1
+            
+            if key == 'I':
+                _term *= 1 
+            elif key == 'X':
+                
+                _term *= _prefactor_exponent
+                _term *= Dagger(basis[i]) + basis[i]
+            elif key == 'Y':
+                
+                _term *= _prefactor_exponent
+                _term *= 1j * (Dagger(basis[i]) - basis[i])
+            elif key == 'Z':
+                _term *= 2 * Dagger(basis[i]) * basis[i] - 1
+
+        term += _term
+
+    term = normal_ordered_form(sy.nsimplify(term).expand(), independent=True)
+    return term
+            
