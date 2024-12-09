@@ -15,6 +15,7 @@ import scipy
 import re
 from copy import deepcopy
 import itertools
+from pauli_string import PauliDecomposition
 
 
 sigma_0 = np.array([[1, 0],
