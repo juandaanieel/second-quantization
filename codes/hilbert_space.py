@@ -1,21 +1,11 @@
-from sympy.physics.quantum.fermion import FermionOp
 from sympy.physics.quantum import Dagger
-from sympy.physics.quantum.state import Ket
 from sympy.core.singleton import S
 import sympy
-
-import matplotlib.pyplot as plt
-import scipy.linalg as la
-
-
 from functools import reduce
-from collections import defaultdict
 import numpy as np
 import scipy
-import re
-from copy import deepcopy
-import itertools
-from pauli_string import PauliDecomposition
+
+from pauli_strings import PauliDecomposition
 
 
 sigma_0 = np.array([[1, 0],
