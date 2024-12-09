@@ -57,3 +57,12 @@ def to_operators(
     -> sympy.expr:
 
 ```
+
+### Tests
+
+We want to test the code.
+Some possible things to test are:
+
+- Checking input and output types
+- Idempotence (going back and forth should do nothing)
+- Preserving algebraic properties
