@@ -4,6 +4,7 @@ import sympy
 from functools import reduce
 import numpy as np
 import scipy
+from sympy.physics.quantum.operatorordering import normal_ordered_form
 
 from pauli_strings import PauliDecomposition
 
@@ -20,7 +21,7 @@ sigma_minus = np.array([[0, 1],
 def basis_operators(
         operators: list[sympy.Expr],
         sparse: bool
-        )-> dict[sympy.Expr, np.ndarray | scipy.sparse.csr.csr_matrix:]:
+        )-> dict[sympy.Expr, np.ndarray | scipy.sparse.csr_matrix:]:
     """
     Transform from second quantized operators to matrix representation in the Fock-space.
     Note that `operators` does not require its elements to be `FermionOp`.
@@ -43,18 +44,20 @@ def basis_operators(
 
 def to_matrix(
         expression: sympy.Expr,
-        basis_operators: list[sympy.Expr, np.ndarray | scipy.sparse.csr.csr_matrix]
-        )-> dict[sympy.Expr, np.ndarray | scipy.sparse.csr.csr_matrix]:
+        operators: list[sympy.physics.quantum.fermion.FermionOp],
+        sparse: bool
+        )-> dict[sympy.Expr, np.ndarray | scipy.sparse.csr_matrix]:
     """
     Transforms a sympy expression containing fermionic operators to a dictionary the matrix representation of each term.
     """
 
-    example_matrix = next(iter(basis_operators.values()))
+    operator_dict = basis_operators(operators, sparse)
+    example_matrix = next(iter(operator_dict.values()))
     dimension = example_matrix.shape[0]
 
     if type(example_matrix) == np.ndarray:
         eye = np.eye
-    elif type(example_matrix) == scipy.sparse.csr.csr_matrix:
+    elif type(example_matrix) == scipy.sparse.csr_matrix:
         eye = lambda N: scipy.sparse.eye(N, format='csr')
     else:
         raise ValueError("Unknown matrix type")
@@ -66,10 +69,10 @@ def to_matrix(
         symbol = S.One
         
         for factor in term.as_ordered_factors():
-            if factor in basis_operators:
-                term_mat = term_mat @ basis_operators[factor]
-            elif Dagger(factor) in basis_operators:
-                term_mat = term_mat @ basis_operators[Dagger(factor)].T.conj()
+            if factor in operator_dict:
+                term_mat = term_mat @ operator_dict[factor]
+            elif Dagger(factor) in operator_dict:
+                term_mat = term_mat @ operator_dict[Dagger(factor)].T.conj()
             else:
                 symbol *= factor
         
@@ -81,12 +84,15 @@ def to_matrix(
 
 
 def to_operators(
-    matrix: np.ndarray | scipy.sparse.csr.csr_matrix,
+    matrix: dict[sympy.Expr, np.ndarray | scipy.sparse.csr_matrix] | np.ndarray | scipy.sparse.csr_matrix,
     basis: list[sympy.Expr],
     )-> sympy.Expr:
     """
     Convert a matrix into a normal ordered operator expression.
     """
+
+    if isinstance(matrix, dict):
+        return sum([k*to_operators(v, basis) for k,v in matrix.items()])
 
     pauli_string = PauliDecomposition(matrix)
     term = S.One
@@ -116,6 +122,6 @@ def to_operators(
 
         term += _term
 
-    term = normal_ordered_form(sy.nsimplify(term).expand(), independent=True)
+    term = normal_ordered_form(sympy.nsimplify(term).expand(), independent=True)
     return term
             
