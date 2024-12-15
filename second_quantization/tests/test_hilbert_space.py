@@ -2,8 +2,9 @@ import numpy as np
 import scipy
 import pytest
 import sympy
-from sympy.physics.quantum.fermion import FermionOp
 from sympy.physics.quantum import Dagger
+from sympy.physics.quantum.fermion import FermionOp
+from sympy.physics.quantum.operatorordering import normal_ordered_form
 
 from second_quantization import hilbert_space
 
@@ -104,13 +105,12 @@ def test_output_types(get_n):
 # Idempotency
 
 
-@pytest.mark.xfail(reason="This is a bug to fix")
 def test_idempotency():
-    fermions = c_0, c_1 = sympy.symbols("c_:2", cls=FermionOp)
-    expr = c_0 * c_1
+    fermions = c_0, c_1, c_2 = sympy.symbols("c_:3", cls=FermionOp)
+    expr = Dagger(c_1) * c_0 * c_2
     mat = hilbert_space.to_matrix(expr, fermions, sparse=False)
     ops = hilbert_space.to_operators(mat, fermions)
-    assert ops == expr
+    assert normal_ordered_form(ops) == normal_ordered_form(expr)
 
 
 def test_single_operator():

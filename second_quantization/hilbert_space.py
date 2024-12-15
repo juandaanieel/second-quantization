@@ -112,9 +112,9 @@ def to_operators(
                 _term *= prefactor_exponent
                 _term *= 1j * (Dagger(op) - op)
             elif key == "Z":
-                _term *= 2 * Dagger(op) * op - 1
+                _term *= -(2 * Dagger(op) * op - 1)
 
-            prefactor_exponent *= 2 * Dagger(op) * op - 1
+            prefactor_exponent *= -(2 * Dagger(op) * op - 1)
 
         term += _term
 
