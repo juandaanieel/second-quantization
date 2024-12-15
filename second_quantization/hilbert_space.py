@@ -98,7 +98,7 @@ def to_operators(
         return sum([k * to_operators(v, basis) for k, v in matrix.items()])
 
     pauli_string = PauliDecomposition(matrix)
-    term = S.One
+    term = S.Zero
 
     for string, prefactor in pauli_string.items():
         _term = S.One * prefactor
