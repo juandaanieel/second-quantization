@@ -3,7 +3,7 @@
 # ## Sums or operators are problematic
 
 # +
-import hilbert_space
+from second_quantization import hilbert_space
 from IPython.display import display
 from sympy.physics.quantum.fermion import FermionOp
 from sympy.physics.quantum import Dagger
