@@ -105,9 +105,7 @@ def to_operators(
         prefactor_exponent = S.One
 
         for key, op in zip(string, basis):
-            if key == "I":
-                _term *= 1
-            elif key == "X":
+            if key == "X":
                 _term *= prefactor_exponent
                 _term *= Dagger(op) + op
             elif key == "Y":
