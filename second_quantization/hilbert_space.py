@@ -102,25 +102,22 @@ def to_operators(
 
     for string, prefactor in pauli_string.items():
         _term = S.One * prefactor
-        _prefactor_exponent = S.One
+        prefactor_exponent = S.One
 
-        for i, key in enumerate(string):
-            j = i - 1
-            if j >= 0:
-                _prefactor_exponent *= 2 * Dagger(basis[j]) * basis[j] - 1
-
+        for key, op in zip(string, basis):
             if key == "I":
                 _term *= 1
             elif key == "X":
-                _term *= _prefactor_exponent
-                _term *= Dagger(basis[i]) + basis[i]
+                _term *= prefactor_exponent
+                _term *= Dagger(op) + op
             elif key == "Y":
-                _term *= _prefactor_exponent
-                _term *= 1j * (Dagger(basis[i]) - basis[i])
+                _term *= prefactor_exponent
+                _term *= 1j * (Dagger(op) - op)
             elif key == "Z":
-                _term *= 2 * Dagger(basis[i]) * basis[i] - 1
+                _term *= 2 * Dagger(op) * op - 1
+
+            prefactor_exponent *= 2 * Dagger(op) * op - 1
 
         term += _term
 
-    term = normal_ordered_form(sympy.nsimplify(term).expand(), independent=True)
-    return term
+    return normal_ordered_form(sympy.nsimplify(term).expand(), independent=True)
