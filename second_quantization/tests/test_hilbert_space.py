@@ -101,4 +101,20 @@ def test_output_types(get_n):
     return
 
 
-# Indempotency
+# Idempotency
+
+
+@pytest.mark.xfail(reason="This is a bug to fix")
+def test_idempotency():
+    fermions = c_0, c_1 = sympy.symbols("c_:2", cls=FermionOp)
+    expr = c_0 * c_1
+    mat = hilbert_space.to_matrix(expr, fermions, sparse=False)
+    ops = hilbert_space.to_operators(mat, fermions)
+    assert ops == expr
+
+
+def test_single_operator():
+    c = FermionOp("c")
+    mat = hilbert_space.to_matrix(c, [c], sparse=False)
+    ops = hilbert_space.to_operators(mat, [c])
+    assert ops == c
