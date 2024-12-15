@@ -16,7 +16,7 @@ sigma_minus = np.array([[0, 1], [0, 0]])
 
 def basis_operators(
     operators: list[sympy.Expr], sparse: bool
-) -> dict[sympy.Expr, np.ndarray | scipy.sparse.csr_matrix :]:
+) -> dict[sympy.Expr, np.ndarray | scipy.sparse.csr_array :]:
     """
     Transform from second quantized operators to matrix representation in the Fock-space.
     Note that `operators` does not require its elements to be `FermionOp`.
@@ -48,23 +48,20 @@ def to_matrix(
     expression: sympy.Expr,
     operators: list[sympy.physics.quantum.fermion.FermionOp],
     sparse: bool,
-) -> dict[sympy.Expr, np.ndarray | scipy.sparse.csr_matrix]:
+) -> dict[sympy.Expr, np.ndarray | scipy.sparse.csr_array]:
     """
     Transforms a sympy expression containing fermionic operators to a dictionary the matrix representation of each term.
     """
 
     operator_dict = basis_operators(operators, sparse)
-    example_matrix = next(iter(operator_dict.values()))
-    dimension = example_matrix.shape[0]
+    dimension = 2 ** len(operators)
 
-    if isinstance(example_matrix, np.ndarray):
+    if not sparse:
         eye = np.eye
-    elif isinstance(example_matrix, scipy.sparse.csr_matrix):
+    else:
 
         def eye(N):
             return scipy.sparse.eye(N, format="csr")
-    else:
-        raise ValueError("Unknown matrix type")
 
     dict_matrices = {}
 
@@ -88,9 +85,9 @@ def to_matrix(
 
 
 def to_operators(
-    matrix: dict[sympy.Expr, np.ndarray | scipy.sparse.csr_matrix]
+    matrix: dict[sympy.Expr, np.ndarray | scipy.sparse.csr_array]
     | np.ndarray
-    | scipy.sparse.csr_matrix,
+    | scipy.sparse.csr_array,
     basis: list[sympy.Expr],
 ) -> sympy.Expr:
     """
