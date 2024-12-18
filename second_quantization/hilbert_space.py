@@ -19,7 +19,7 @@ def basis_operators(
 ) -> dict[sympy.Expr, np.ndarray | scipy.sparse.csr_array :]:
     """
     Transform from second quantized operators to matrix representation in the Fock-space.
-    
+
     Parameters
     ----------
         operators (list[sympy.Expr]):
@@ -31,7 +31,6 @@ def basis_operators(
     Note:
     - The `operators` list does not require its elements to be `FermionOp`.
     - The fermion ordering follows the ordering in the list.
-
     """
 
     if sparse:
@@ -61,7 +60,7 @@ def to_matrix(
     sparse: bool,
 ) -> dict[sympy.Expr, np.ndarray | scipy.sparse.csr_array]:
     """
-    Transforms a sympy expression containing fermionic operators to a dictionary 
+    Transforms a sympy expression containing fermionic operators to a dictionary
     with the matrix representation of each term.
 
     Parameters
@@ -76,7 +75,7 @@ def to_matrix(
     Returns
     -------
     dict[sympy.Expr, np.ndarray | scipy.sparse.csr_array]
-        A dictionary where the keys are sympy expressions and the values are the 
+        A dictionary where the keys are sympy expressions and the values are the
         corresponding matrix representations in either dense or sparse format.
     """
 
