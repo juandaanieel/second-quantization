@@ -19,8 +19,19 @@ def basis_operators(
 ) -> dict[sympy.Expr, np.ndarray | scipy.sparse.csr_array :]:
     """
     Transform from second quantized operators to matrix representation in the Fock-space.
-    Note that `operators` does not require its elements to be `FermionOp`.
-    Note that the fermion ordering follows the ordering in the list.
+    
+    Parameters
+    ----------
+        operators (list[sympy.Expr]):
+            A list of sympy expressions representing the operators. sparse (bool): A boolean flag indicating whether to use sparse matrices.
+    Returns
+    -------
+        dict[sympy.Expr, np.ndarray | scipy.sparse.csr_array]:
+            A dictionary where the keys are the input operators and the values are their corresponding matrix representations in the Fock-space.
+    Note:
+    - The `operators` list does not require its elements to be `FermionOp`.
+    - The fermion ordering follows the ordering in the list.
+
     """
 
     if sparse:
@@ -50,7 +61,23 @@ def to_matrix(
     sparse: bool,
 ) -> dict[sympy.Expr, np.ndarray | scipy.sparse.csr_array]:
     """
-    Transforms a sympy expression containing fermionic operators to a dictionary the matrix representation of each term.
+    Transforms a sympy expression containing fermionic operators to a dictionary 
+    with the matrix representation of each term.
+
+    Parameters
+    ----------
+    expression : sympy.Expr
+        A sympy expression containing fermionic operators.
+    operators : list[sympy.physics.quantum.fermion.FermionOp]
+        A list of fermionic operators.
+    sparse : bool
+        If True, the matrices will be in sparse format. Otherwise, they will be dense.
+
+    Returns
+    -------
+    dict[sympy.Expr, np.ndarray | scipy.sparse.csr_array]
+        A dictionary where the keys are sympy expressions and the values are the 
+        corresponding matrix representations in either dense or sparse format.
     """
 
     operator_dict = basis_operators(operators, sparse)
@@ -91,7 +118,16 @@ def to_operators(
     basis: list[sympy.Expr],
 ) -> sympy.Expr:
     """
-    Convert a matrix into a normal ordered operator expression.
+    Parameters
+    ----------
+        matrix:
+            The matrix to be converted. It can be a dictionary with sympy expressions as keys and numpy arrays or scipy sparse arrays as values, or it can be a numpy array or a scipy sparse array directly.
+        basis (list[sympy.Expr]):
+            A list of sympy expressions representing the basis operators.
+    Returns
+    -------
+        sympy.Expr:
+            The normal ordered operator expression corresponding to the input matrix.
     """
 
     if isinstance(matrix, dict):
