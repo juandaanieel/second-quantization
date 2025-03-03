@@ -154,3 +154,91 @@ def to_operators(
         term += _term
 
     return normal_ordered_form(sympy.nsimplify(term).expand(), independent=True)
+
+
+def _get_all_combinations(
+    subset: list[sympy.Expr], all_operators: list[sympy.Expr], sparse: bool
+) -> dict[sympy.Expr : np.ndarray]:
+    """
+    Get symbolic representation of all possible combinations of operators of the input list
+
+    Parameters
+    ----------
+        subset list[sympy.Expr]:
+            Subset of of operators one wants the combinations of
+        all_operators list[sympy.Expr]:
+            A list of sympy expressions representing the fermionic operators of the system.
+        sparse: bool:
+            Bool to set whether dense numpy arrays or sparse scipy arrays are used
+    Returns
+    -------
+        dict[sympy.Expr, np.ndarray]:
+            Dict with all combinations of operators within the subset as keys and their corresponding matrix
+            representation as value
+    """
+    subset = [subset] if not isinstance(subset, list) else subset
+    N_max = 2 ** len(subset)
+    n_ops = len(subset)
+    operator_list = {}
+    symbolic_list = []
+
+    for i in range(N_max + 1):
+        bit_string = [
+            0 for _ in range(n_ops - len(list(map(int, format(i, "b")))))
+        ] + list(map(int, format(i, "b")))
+        symbolic_list.append(
+            np.prod([b_op**bit for b_op, bit in zip(subset, bit_string)])
+        )
+
+    for symbol in symbolic_list:
+        operator_list[symbol] = to_matrix(
+            symbol, operators=all_operators, sparse=sparse
+        )[1]
+    return operator_list
+
+
+def partial_trace_generators(
+    subset: list[sympy.Expr], all_operators: list[sympy.Expr], sparse: bool
+) -> np.ndarray:
+    """
+    Generate the projectors required to compute the partial trace of a subset of operators
+
+    Parameters
+    ----------
+        subset list[sympy.Expr]:
+            Subset of operators to trace out
+        all_operators list[sympy.Expr]:
+            A list of sympy expressions representing the fermionic operators of the system.
+        sparse: bool:
+            Bool to set whether dense numpy arrays or sparse scipy arrays are used
+    Returns
+    -------
+        np.ndarray:
+            numpy array with the projectors that trace out the subset of operators specified in the argument.
+            The final trace is taken by projecting a matrix M as
+            np.sum([p[:,i,:] @ M @ p[:,i,:].conj().T for i in range(p.shape[1])])
+    """
+    set_subset = set([subset] if not isinstance(subset, list) else subset)
+    complement = [element for element in all_operators if element not in set_subset]
+
+    subset_operators = _get_all_combinations(
+        subset=subset, all_operators=all_operators, sparse=sparse
+    )
+    complement_operators = _get_all_combinations(
+        subset=complement, all_operators=all_operators, sparse=sparse
+    )
+
+    size = list(subset_operators.values())[0].shape[0]
+    vacuum = np.zeros(size)
+    vacuum[0] = 1
+
+    vecs = []
+
+    for element in complement_operators.values():
+        aux = []
+        for g in subset_operators.values():
+            generator = g @ element
+            aux.append(vacuum @ generator)
+        vecs.append(aux)
+
+    return np.array(vecs)

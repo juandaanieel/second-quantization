@@ -2,6 +2,8 @@ import numpy as np
 import scipy
 import pytest
 import sympy
+from functools import reduce
+from operator import mul
 from sympy.physics.quantum import Dagger
 from sympy.physics.quantum.fermion import FermionOp
 from sympy.physics.quantum.operatorordering import normal_ordered_form
@@ -118,3 +120,39 @@ def test_single_operator():
     mat = hilbert_space.to_matrix(c, [c], sparse=False)
     ops = hilbert_space.to_operators(mat, [c])
     assert ops == c
+
+
+# Combinations and partial trace
+
+
+def test_combinations(get_n):
+    list_of_fermions = [FermionOp("c_{}".format(i)) for i in range(get_n)]
+    subset = list_of_fermions[: get_n // 2]
+    all_operators = list_of_fermions
+    sparse = False
+    all_combinations = hilbert_space._get_all_combinations(
+        subset, all_operators, sparse
+    )
+
+    assert subset[0] in list(all_combinations.keys())
+    assert reduce(mul, subset) in list(all_combinations.keys())
+    if get_n // 2 > 1:
+        assert reduce(mul, [subset[0], subset[-1]]) in list(all_combinations.keys())
+
+
+def test_partial_trace(get_n):
+    list_of_fermions = [FermionOp("c_{}".format(i)) for i in range(get_n)]
+    p_0 = np.random.uniform(0, 1)
+    v = np.array([p_0, *(0 for _ in range(2 ** len(list_of_fermions) - 2)), 1 - p_0])
+    v = v / np.sqrt(v.conj().T @ v)
+    m = np.outer(v, v)
+
+    p = hilbert_space.partial_trace_generators(
+        list_of_fermions[1:], list_of_fermions, False
+    )
+    print(p.shape)
+    m_red = np.sum(
+        [p[:, i, :] @ m @ p[:, i, :].conj().T for i in range(p.shape[1])], axis=0
+    )
+    assert np.isclose(m_red[0, 0], m[0, 0])
+    assert np.isclose(np.trace(m_red), 1)
