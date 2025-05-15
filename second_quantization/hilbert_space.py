@@ -84,7 +84,7 @@ def to_matrix(
         corresponding matrix representations in either dense or sparse format.
     """
 
-    operator_dict = basis_operators(operators, sparse)
+    operator_dict, _ = basis_operators(operators, sparse)
     dimension = 2 ** len(operators)
 
     if not sparse:
