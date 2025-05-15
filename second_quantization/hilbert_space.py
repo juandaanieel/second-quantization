@@ -51,7 +51,12 @@ def basis_operators(
             kron, [sigma_z] * i + [sigma_minus] + [eye(2 ** (size - i - 1))]
         )
 
-    return basis_operators
+    parity_operator = reduce(
+        kron,
+        [sigma_z] * size,
+    )  # Parity operator is the product of all sigma_z operators
+
+    return basis_operators, parity_operator
 
 
 def to_matrix(
