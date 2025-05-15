@@ -91,8 +91,8 @@ def build_random_hamiltonian(get_n, get_combinations):
 # Input and output types
 def test_output_types(get_n):
     list_of_fermions = get_list_of_operators(get_n)
-    basis_ops_sparse = hilbert_space.basis_operators(list_of_fermions, sparse=True)
-    basis_ops_dense = hilbert_space.basis_operators(list_of_fermions, sparse=False)
+    basis_ops_sparse, _ = hilbert_space.basis_operators(list_of_fermions, sparse=True)
+    basis_ops_dense, _ = hilbert_space.basis_operators(list_of_fermions, sparse=False)
     assert np.all([scipy.sparse.issparse(v) for v in basis_ops_sparse.values()])
     assert np.all([isinstance(v, np.ndarray) for v in basis_ops_dense.values()])
     ordered_keys_dense = sympy.ordered([k for k in basis_ops_dense.keys()])
