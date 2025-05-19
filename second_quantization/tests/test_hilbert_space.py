@@ -16,7 +16,10 @@ from second_quantization import hilbert_space
 @pytest.fixture(scope="module", params=[2, 3, 4, 5, 6])
 def get_n(request):
     """
-    Return a list of orders to compute.
+    Fixture that provides different sizes for the number of fermionic operators to test with.
+
+    Yields:
+        int: Number of fermionic operators.
     """
     return request.param
 
@@ -33,7 +36,10 @@ def get_n(request):
 )
 def get_combinations(request):
     """
-    Return a set of tuples that are meant to pair up combinations of ops
+    Fixture that provides various index combinations for hopping or pairing terms.
+
+    Yields:
+        Union[Tuple[int, int], List[Tuple[int, int]]]: Index pairs for operator interactions.
     """
     return request.param
 
@@ -42,18 +48,56 @@ def get_combinations(request):
 
 
 def get_list_of_operators(get_n):
-    return [FermionOp("c_{}".format(i)) for i in range(get_n)]
+    """
+    Generate a list of Fermion creation/annihilation operators.
+
+    Args:
+        get_n (int): Number of operators to generate.
+
+    Returns:
+        List[FermionOp]: List of Fermion operators.
+    """
+    return [FermionOp(f"c_{i}") for i in range(get_n)]
 
 
 def get_list_of_reals(get_n):
-    return sympy.symbols(["a_{}".format(i) for i in range(get_n)], real=True)
+    """
+    Generate a list of real-valued symbolic coefficients.
+
+    Args:
+        get_n (int): Number of symbols to generate.
+
+    Returns:
+        Tuple[sympy.Symbol]: Tuple of real-valued sympy symbols.
+    """
+    return sympy.symbols([f"a_{i}" for i in range(get_n)], real=True)
 
 
 def get_diagonal_term(ops, symbs):
+    """
+    Construct a diagonal Hamiltonian term in second quantization.
+
+    Args:
+        ops (List[FermionOp]): List of Fermion operators.
+        symbs (List[sympy.Symbol]): Coefficients for each diagonal term.
+
+    Returns:
+        Expr: Diagonal Hamiltonian expression.
+    """
     return sum([s * Dagger(op) * op for s, op in zip(symbs, ops)])
 
 
 def get_random_hopping(ops, indices):
+    """
+    Construct hopping terms between specified operator indices.
+
+    Args:
+        ops (List[FermionOp]): List of Fermion operators.
+        indices (Union[Tuple[int, int], List[Tuple[int, int]]]): Index pairs for hopping.
+
+    Returns:
+        Union[Expr, List[Expr]]: Hopping term(s).
+    """
     if isinstance(indices, list):
         return [get_random_hopping(ops, pair) for pair in indices]
     i, j = indices
@@ -61,6 +105,16 @@ def get_random_hopping(ops, indices):
 
 
 def get_random_pairing(ops, indices):
+    """
+    Construct pairing terms between specified operator indices.
+
+    Args:
+        ops (List[FermionOp]): List of Fermion operators.
+        indices (Union[Tuple[int, int], List[Tuple[int, int]]]): Index pairs for pairing.
+
+    Returns:
+        Union[Expr, List[Expr]]: Pairing term(s).
+    """
     if isinstance(indices, list):
         return [get_random_pairing(ops, pair) for pair in indices]
     i, j = indices
@@ -68,14 +122,24 @@ def get_random_pairing(ops, indices):
 
 
 def build_random_hamiltonian(get_n, get_combinations):
+    """
+    Construct a random Hamiltonian with diagonal, hopping, and pairing terms.
+
+    Args:
+        get_n (int): Number of Fermion operators.
+        get_combinations (List[Tuple[int, int]]): Index pairs for hopping/pairing.
+
+    Returns:
+        Expr: Full Hamiltonian expression.
+    """
     ops = get_list_of_operators(get_n)
     symbs = get_list_of_reals(get_n + len(get_combinations))
     diag_symbs = symbs[:get_n]
     hopping_symbs = symbs[get_n:]
 
     diag = get_diagonal_term(ops, diag_symbs)
-    hopping = get_random_hopping(ops, hopping_symbs)
-    supercond = get_random_pairing(ops, hopping_symbs)
+    hopping = get_random_hopping(ops, get_combinations)
+    supercond = get_random_pairing(ops, get_combinations)
 
     hamiltonian = (
         diag
@@ -88,26 +152,29 @@ def build_random_hamiltonian(get_n, get_combinations):
 # Tests
 
 
-# Input and output types
 def test_output_types(get_n):
+    """
+    Verify that `basis_operators` returns correct types for sparse and dense formats.
+    """
     list_of_fermions = get_list_of_operators(get_n)
     basis_ops_sparse, _ = hilbert_space.basis_operators(list_of_fermions, sparse=True)
     basis_ops_dense, _ = hilbert_space.basis_operators(list_of_fermions, sparse=False)
+
     assert np.all([scipy.sparse.issparse(v) for v in basis_ops_sparse.values()])
     assert np.all([isinstance(v, np.ndarray) for v in basis_ops_dense.values()])
-    ordered_keys_dense = sympy.ordered([k for k in basis_ops_dense.keys()])
-    ordered_keys_sparse = sympy.ordered([k for k in basis_ops_dense.keys()])
+
+    ordered_keys_dense = sympy.ordered(basis_ops_dense.keys())
+    ordered_keys_sparse = sympy.ordered(basis_ops_sparse.keys())
     ordered_input = sympy.ordered(list_of_fermions)
 
     assert np.all([k1 == k2 for k1, k2 in zip(ordered_keys_dense, ordered_input)])
     assert np.all([k1 == k2 for k1, k2 in zip(ordered_keys_sparse, ordered_input)])
-    return
-
-
-# Idempotency
 
 
 def test_idempotency():
+    """
+    Ensure that converting an operator expression to matrix and back preserves the expression.
+    """
     fermions = c_0, c_1, c_2 = sympy.symbols("c_:3", cls=FermionOp)
     expr = Dagger(c_1) * c_0 * c_2
     mat = hilbert_space.to_matrix(expr, fermions, sparse=False)
@@ -116,17 +183,20 @@ def test_idempotency():
 
 
 def test_single_operator():
+    """
+    Check that a single Fermion operator is preserved through matrix conversion.
+    """
     c = FermionOp("c")
     mat = hilbert_space.to_matrix(c, [c], sparse=False)
     ops = hilbert_space.to_operators(mat, [c])
     assert ops == c
 
 
-# Combinations and partial trace
-
-
 def test_combinations(get_n):
-    list_of_fermions = [FermionOp("c_{}".format(i)) for i in range(get_n)]
+    """
+    Test that all combinations of a subset of Fermion operators are correctly generated.
+    """
+    list_of_fermions = [FermionOp(f"c_{i}") for i in range(get_n)]
     subset = list_of_fermions[: get_n // 2]
     all_operators = list_of_fermions
     sparse = False
@@ -134,14 +204,17 @@ def test_combinations(get_n):
         subset, all_operators, sparse
     )
 
-    assert subset[0] in list(all_combinations.keys())
-    assert reduce(mul, subset) in list(all_combinations.keys())
+    assert subset[0] in all_combinations
+    assert reduce(mul, subset) in all_combinations
     if get_n // 2 > 1:
-        assert reduce(mul, [subset[0], subset[-1]]) in list(all_combinations.keys())
+        assert reduce(mul, [subset[0], subset[-1]]) in all_combinations
 
 
 def test_partial_trace(get_n):
-    list_of_fermions = [FermionOp("c_{}".format(i)) for i in range(get_n)]
+    """
+    Validate partial trace by checking reduced density matrix properties for a bipartite state.
+    """
+    list_of_fermions = [FermionOp(f"c_{i}") for i in range(get_n)]
     p_0 = np.random.uniform(0, 1)
     v = np.array([p_0, *(0 for _ in range(2 ** len(list_of_fermions) - 2)), 1 - p_0])
     v = v / np.sqrt(v.conj().T @ v)
@@ -150,9 +223,9 @@ def test_partial_trace(get_n):
     p = hilbert_space.partial_trace_generators(
         list_of_fermions[1:], list_of_fermions, False
     )
-    print(p.shape)
     m_red = np.sum(
         [p[:, i, :] @ m @ p[:, i, :].conj().T for i in range(p.shape[1])], axis=0
     )
+
     assert np.isclose(m_red[0, 0], m[0, 0])
     assert np.isclose(np.trace(m_red), 1)
