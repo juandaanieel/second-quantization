@@ -63,6 +63,7 @@ def to_matrix(
     expression: sympy.Expr,
     operators: list[sympy.physics.quantum.fermion.FermionOp],
     sparse: bool,
+    operator_dict: dict = None,
 ) -> dict[sympy.Expr, np.ndarray | scipy.sparse.csr_array]:
     """
     Transforms a sympy expression containing fermionic operators to a dictionary
@@ -76,6 +77,8 @@ def to_matrix(
         A list of fermionic operators.
     sparse : bool
         If True, the matrices will be in sparse format. Otherwise, they will be dense.
+    operator_dict : dict, optional
+        A dictionary containing the matrix representations of the operators. If not provided, it will be generated using `basis_operators`.
 
     Returns
     -------
@@ -84,7 +87,9 @@ def to_matrix(
         corresponding matrix representations in either dense or sparse format.
     """
 
-    operator_dict, _ = basis_operators(operators, sparse)
+    if operator_dict is None:
+        operator_dict, _ = basis_operators(operators, sparse)
+
     dimension = 2 ** len(operators)
 
     if not sparse:
@@ -131,7 +136,7 @@ def to_operators(
     Returns
     -------
         sympy.Expr:
-            The normal ordered operator expression corresponding to the input matrix.
+            The normal ordered operator ex  pression corresponding to the input matrix.
     """
 
     if isinstance(matrix, dict):
@@ -162,7 +167,10 @@ def to_operators(
 
 
 def _get_all_combinations(
-    subset: list[sympy.Expr], all_operators: list[sympy.Expr], sparse: bool
+    subset: list[sympy.Expr],
+    all_operators: list[sympy.Expr],
+    sparse: bool,
+    operator_dict: dict = None,
 ) -> dict[sympy.Expr : np.ndarray]:
     """
     Get symbolic representation of all possible combinations of operators of the input list
@@ -197,13 +205,16 @@ def _get_all_combinations(
 
     for symbol in symbolic_list:
         operator_list[symbol] = to_matrix(
-            symbol, operators=all_operators, sparse=sparse
+            symbol, operators=all_operators, sparse=sparse, operator_dict=operator_dict
         )[1]
     return operator_list
 
 
 def partial_trace_generators(
-    subset: list[sympy.Expr], all_operators: list[sympy.Expr], sparse: bool
+    subset: list[sympy.Expr],
+    all_operators: list[sympy.Expr],
+    sparse: bool,
+    operator_dict: dict = None,
 ) -> np.ndarray:
     """
     Generate the projectors required to compute the partial trace of a subset of operators
@@ -227,10 +238,16 @@ def partial_trace_generators(
     complement = [element for element in all_operators if element not in set_subset]
 
     subset_operators = _get_all_combinations(
-        subset=subset, all_operators=all_operators, sparse=sparse
+        subset=subset,
+        all_operators=all_operators,
+        sparse=sparse,
+        operator_dict=operator_dict,
     )
     complement_operators = _get_all_combinations(
-        subset=complement, all_operators=all_operators, sparse=sparse
+        subset=complement,
+        all_operators=all_operators,
+        sparse=sparse,
+        operator_dict=operator_dict,
     )
 
     size = list(subset_operators.values())[0].shape[0]
