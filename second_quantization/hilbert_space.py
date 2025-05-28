@@ -4,6 +4,7 @@ import sympy
 from functools import reduce
 import numpy as np
 import scipy
+import inspect
 from sympy.physics.quantum.operatorordering import normal_ordered_form
 
 from .pauli_strings import PauliDecomposition
@@ -154,3 +155,42 @@ def to_operators(
         term += _term
 
     return normal_ordered_form(sympy.nsimplify(term).expand(), independent=True)
+
+
+def make_dict_callable(
+    hamiltonian_dict: dict[sympy.Expr, np.ndarray],
+) -> tuple[callable, dict]:
+    """
+    Creates a callable function from a dictionary of SymPy expressions and NumPy arrays.
+
+    Parameters:
+    hamiltonian_dict (dict): Keys are SymPy expressions, values are NumPy arrays.
+
+    Returns:
+    tuple:
+        - callable: Function that evaluates the sum of products of expressions and arrays.
+        - dict: Default dictionary with all symbols set to zero.
+    """
+    all_symbols = list(
+        sympy.ordered(sum([k for k in hamiltonian_dict.keys()]).free_symbols)
+    )
+
+    array_of_expr = sympy.Array(list(hamiltonian_dict.keys()))
+    callable_expr = sympy.lambdify(all_symbols, array_of_expr, modules="numpy")
+    tensor = np.array([v for v in list(hamiltonian_dict.values())])
+
+    # check if the arguments of the callable contain dummys
+    arg_names = list(inspect.signature(callable_expr).parameters.keys())
+    if np.any(["Dummy" in name for name in arg_names]):
+        raise ValueError(
+            "Variable names must be chosen such that they are not lambdified to Dummy variables. Avoid special characters"
+        )
+
+    def func(*args, **kwargs):
+        prefac = callable_expr(*args, **kwargs)[:, None, None]
+        return np.sum(prefac * tensor, axis=0)
+
+    # adjust signature
+    func.__signature__ = inspect.signature(callable_expr)
+
+    return func
