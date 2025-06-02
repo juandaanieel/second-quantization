@@ -2,6 +2,7 @@ import numpy as np
 import scipy
 import pytest
 import sympy
+import random
 from sympy.physics.quantum import Dagger
 from sympy.physics.quantum.fermion import FermionOp
 from sympy.physics.quantum.operatorordering import normal_ordered_form
@@ -118,3 +119,115 @@ def test_single_operator():
     mat = hilbert_space.to_matrix(c, [c], sparse=False)
     ops = hilbert_space.to_operators(mat, [c])
     assert ops == c
+
+
+def test_symbolic_basis_matrix_action():
+    """
+    Test that the symbolic basis elements correctly map to their corresponding
+    positions in the Hilbert space when converted to matrices and applied to vacuum.
+
+    Steps:
+    1. Generate the symbolic basis using symbolic_basis
+    2. Choose a random element from the basis
+    3. Extract operators and convert to matrix using to_matrix
+    4. Apply matrix to vacuum state
+    5. Verify the result has non-zero value only at the expected position
+    """
+    # Test with different numbers of fermions
+    for n_fermions in [2, 3, 4]:
+        # Create fermionic operators
+        fermions = [FermionOp(f"c_{i}") for i in range(n_fermions)]
+
+        # Generate symbolic basis
+        symbolic_states = hilbert_space.symbolic_basis(fermions)
+
+        # The vacuum state is always the first element (all zeros)
+        vacuum_index = 0
+        vacuum_state = np.zeros(2**n_fermions)
+        vacuum_state[vacuum_index] = 1.0
+
+        # Test multiple random elements
+        for _ in range(min(5, len(symbolic_states))):  # Test up to 5 random elements
+            # Choose a random element from the symbolic basis
+            random_index = random.randint(0, len(symbolic_states) - 1)
+            random_element = symbolic_states[random_index]
+
+            # Skip the vacuum state (S.One) as it's trivial
+            if random_element == sympy.S.One:
+                continue
+
+            # Convert the symbolic element to matrix representation
+            matrix_dict = hilbert_space.to_matrix(
+                random_element, fermions, sparse=False
+            )
+
+            # Since random_element should be a product of creation operators,
+            # it should have coefficient 1 (S.One as key)
+            assert sympy.S.One in matrix_dict
+            operator_matrix = matrix_dict[sympy.S.One]
+
+            # Apply the matrix to the vacuum state
+            result_state = operator_matrix @ vacuum_state
+
+            # Find non-zero elements
+            non_zero_indices = np.where(np.abs(result_state) > 1e-10)[0]
+
+            # There should be exactly one non-zero element
+            assert (
+                len(non_zero_indices) == 1
+            ), f"Expected exactly one non-zero element, got {len(non_zero_indices)}"
+
+            # The non-zero element should be at the position corresponding to the random element
+            result_index = non_zero_indices[0]
+            assert (
+                result_index == random_index
+            ), f"Expected non-zero at index {random_index}, got {result_index}"
+
+            # The value should be 1 (up to sign, depending on fermion ordering)
+            assert (
+                abs(abs(result_state[result_index]) - 1.0) < 1e-10
+            ), f"Expected |amplitude| = 1, got {abs(result_state[result_index])}"
+
+
+def test_symbolic_basis_properties():
+    """
+    Test basic properties of the symbolic basis.
+    """
+    # Test with 3 fermions
+    fermions = [FermionOp(f"c_{i}") for i in range(3)]
+    symbolic_states = hilbert_space.symbolic_basis(fermions)
+
+    # Should have 2^n states
+    assert len(symbolic_states) == 2**3
+
+    # First state should be vacuum (S.One)
+    assert symbolic_states[0] == sympy.S.One
+
+    # Check some specific states
+    # State |001⟩ should correspond to c_0†|0⟩
+    assert symbolic_states[1] == Dagger(fermions[0])
+
+    # State |010⟩ should correspond to c_1†|0⟩
+    assert symbolic_states[2] == Dagger(fermions[1])
+
+    # State |011⟩ should correspond to c_1†c_0†|0⟩
+    expected_state_3 = Dagger(fermions[1]) * Dagger(fermions[0])
+    assert symbolic_states[3] == expected_state_3
+
+
+def test_string_basis_properties():
+    """
+    Test the string basis generation.
+    """
+    fermions = [FermionOp(f"c_{i}") for i in range(3)]
+    strings = hilbert_space.string_basis(fermions)
+
+    # Should have 2^n strings
+    assert len(strings) == 2**3
+
+    # Check specific strings
+    assert strings[0] == "000"  # vacuum
+    assert strings[1] == "100"  # first fermion occupied
+    assert strings[2] == "010"  # second fermion occupied
+    assert strings[3] == "110"  # first and second fermions occupied
+    assert strings[7] == "111"  # all fermions occupied

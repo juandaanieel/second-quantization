@@ -154,3 +154,58 @@ def to_operators(
         term += _term
 
     return normal_ordered_form(sympy.nsimplify(term).expand(), independent=True)
+
+
+def find(s, ch):
+    # Taken from: # https://stackoverflow.com/questions/11122291/how-to-find-char-in-string-and-get-all-the-indexes
+    return [i for i, ltr in enumerate(s) if ltr == ch]
+
+
+def string_basis(fermions):
+    """
+    Generate a list of bitstrings representing the occupation of fermions.
+
+    Parameters:
+    ---------
+    fermions : list
+        List of fermionic operators.
+    Returns:
+    ---------
+    strings : list
+        List of strings
+    """
+    strings = []
+    size = 2 ** len(fermions)
+    for i in range(size):
+        reverse_bitstring = format(i, "b")[::-1]
+        reverse_bitstring += "0" * (len(fermions) - len(reverse_bitstring))
+        strings.append(reverse_bitstring)
+    return strings
+
+
+def symbolic_basis(fermions):
+    """
+    Generate a list of symbolic fermionic operators corresponding to the occupation of fermions.
+
+    Parameters:
+    ----------
+    fermions : list
+        List of fermionic operators.
+    Returns:
+    -------
+    symbols : list
+        List of symbolic fermionic operators.
+    """
+    symbols = []
+    size = 2 ** len(fermions)
+    strings = string_basis(fermions)
+
+    for i in range(size):
+        if i == 0:
+            sites = [sympy.S.One]
+        else:
+            sites = find(strings[i], "1")
+            sites = [Dagger(fermions[site]) for site in sites]
+
+        symbols.append(sympy.Mul(*sites))
+    return symbols
