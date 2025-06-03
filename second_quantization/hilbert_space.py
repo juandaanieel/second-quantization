@@ -91,7 +91,9 @@ def to_matrix(
             return scipy.sparse.eye(N, format="csr")
 
     dict_matrices = {}
-
+    # Expand the expression to ensure all terms are separated
+    expression = expression.expand()
+    # Iterate over each term in the expression
     for term, coeff in expression.as_coefficients_dict().items():
         term_mat = float(coeff) * eye(dimension)
         symbol = S.One
