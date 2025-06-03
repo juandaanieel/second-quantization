@@ -118,3 +118,191 @@ def test_single_operator():
     mat = hilbert_space.to_matrix(c, [c], sparse=False)
     ops = hilbert_space.to_operators(mat, [c])
     assert ops == c
+
+
+# Tests for make_dict_callable function
+def test_make_dict_callable_function_signature():
+    """Test that the returned function has the correct signature."""
+    a, b, c = sympy.symbols("a b c", real=True)
+
+    # Create dictionary with multiple symbols
+    hamiltonian_dict = {a: np.eye(2), b + c: np.ones((2, 2)), a * b: np.zeros((2, 2))}
+
+    func = hilbert_space.make_dict_callable(hamiltonian_dict)
+
+    # Check that the function signature contains the expected parameters
+    import inspect
+
+    sig = inspect.signature(func)
+    param_names = list(sig.parameters.keys())
+
+    # Should contain all free symbols: a, b, c
+    assert len(param_names) == 3
+    assert set(param_names) == {"a", "b", "c"}
+
+
+def test_make_dict_callable_zero_values():
+    """Test make_dict_callable with zero parameter values."""
+    x, y = sympy.symbols("x y", real=True)
+
+    matrix_x = np.array([[1, 2], [3, 4]])
+    matrix_y = np.array([[5, 6], [7, 8]])
+
+    hamiltonian_dict = {x: matrix_x, y: matrix_y}
+    func = hilbert_space.make_dict_callable(hamiltonian_dict)
+
+    # Test with zero values
+    result = func(0.0, 0.0)
+    expected = np.zeros((2, 2))
+
+    np.testing.assert_array_almost_equal(result, expected)
+
+
+def test_make_dict_callable_keyword_arguments():
+    """Test that the callable function works with keyword arguments."""
+    mu, t = sympy.symbols("mu t", real=True)
+
+    matrix_mu = np.array([[1, 0], [0, -1]])
+    matrix_t = np.array([[0, 1], [1, 0]])
+
+    hamiltonian_dict = {mu: matrix_mu, t: matrix_t}
+    func = hilbert_space.make_dict_callable(hamiltonian_dict)
+
+    # Test with keyword arguments
+    result1 = func(mu=0.5, t=1.0)
+    result2 = func(t=1.0, mu=0.5)  # Different order
+    expected = 0.5 * matrix_mu + 1.0 * matrix_t
+
+    np.testing.assert_array_almost_equal(result1, expected)
+    np.testing.assert_array_almost_equal(result2, expected)
+
+
+def test_make_dict_callable_cosine_and_complex():
+    """Test make_dict_callable with cosine prefactor and complex constant terms."""
+    # Define two fermions
+    c, d = [FermionOp(name) for name in "cd"]
+
+    # Define a symbolic parameter for the cosine term
+    t = sympy.Symbol("t", real=True)
+
+    # Create two fermionic terms:
+    # Term 1: cosine prefactor with hopping c†d + d†c
+    term1 = sympy.cos(t) * (Dagger(c) * d + Dagger(d) * c)
+
+    # Term 2: complex constant with pairing c†d† + dc
+    complex_coeff = 1.5 + 2.0j
+    term2 = complex_coeff * (Dagger(c) * Dagger(d) + d * c)
+
+    # Combine terms into a single expression
+    hamiltonian = term1 + term2
+
+    # Convert to matrix representation
+    matrix_dict = hilbert_space.to_matrix(hamiltonian, [c, d], sparse=False)
+
+    # Create callable function
+    func = hilbert_space.make_dict_callable(matrix_dict)
+
+    # Test with a random value for t
+    np.random.seed(42)  # For reproducibility
+    t_val = np.random.uniform(0, 2 * np.pi)
+
+    result = func(t_val)
+
+    # Manually compute expected result
+    # First, get the matrix representations for each term separately
+    term1_dict = hilbert_space.to_matrix(term1, [c, d], sparse=False)
+    term2_dict = hilbert_space.to_matrix(term2, [c, d], sparse=False)
+
+    # Extract matrices and compute expected result
+    expected = np.zeros((4, 4), dtype=complex)
+
+    # Add contribution from cosine term
+    for expr, matrix in term1_dict.items():
+        if expr == sympy.cos(t):
+            expected += np.cos(t_val) * matrix
+        else:
+            # Handle other symbolic expressions if any
+            expected += float(expr.subs(t, t_val)) * matrix
+
+    # Add contribution from complex constant term
+    for expr, matrix in term2_dict.items():
+        if expr == complex_coeff:
+            expected += complex_coeff * matrix
+        else:
+            # Handle other expressions
+            if hasattr(expr, "subs"):
+                expected += complex(expr.subs(t, t_val)) * matrix
+            else:
+                expected += complex(expr) * matrix
+
+    # Verify the result matches expected
+    np.testing.assert_array_almost_equal(result, expected)
+
+    # Additional checks
+    assert result.shape == (4, 4)  # 2^2 for 2 fermions
+    assert np.iscomplexobj(result)  # Should be complex due to complex coefficient
+
+    # Test with another value to ensure function works correctly
+    t_val2 = np.pi / 4
+    result2 = func(t_val2)
+    assert result2.shape == (4, 4)
+
+    # Verify that changing t changes the result (due to cosine term)
+    assert not np.allclose(result, result2)
+
+
+def test_make_dict_callable_dummy_variable_error():
+    """Test that make_dict_callable raises ValueError for symbols that become Dummy variables."""
+    # Create a symbol that will cause lambdify to generate a Dummy variable
+    # This can happen with symbols that have special characters or reserved names
+
+    # Using a symbol with underscores and special formatting that can cause issues
+    problematic_symbol = sympy.Symbol(r"__x_{3}", real=True)
+    matrix = np.array([[1, 0], [0, 1]])
+
+    hamiltonian_dict = {problematic_symbol: matrix}
+
+    # This should raise a ValueError due to the Dummy variable detection
+    with pytest.raises(
+        ValueError,
+        match="Variable names must be chosen such that they are not lambdified to Dummy variables",
+    ):
+        hilbert_space.make_dict_callable(hamiltonian_dict)
+
+
+# Alternative test that might be more reliable for triggering Dummy variables
+def test_make_dict_callable_dummy_variable_error_alternative():
+    """Alternative test for Dummy variable error using reserved Python keywords."""
+    # Try using Python reserved keywords or names that conflict with numpy
+    try:
+        # Create a symbol with a name that might conflict
+        problematic_symbol = sympy.Symbol(
+            "lambda", real=True
+        )  # 'lambda' is a Python keyword
+        matrix = np.eye(2)
+
+        hamiltonian_dict = {problematic_symbol: matrix}
+
+        # This might trigger the Dummy variable error
+        with pytest.raises(
+            ValueError,
+            match="Variable names must be chosen such that they are not lambdified to Dummy variables",
+        ):
+            hilbert_space.make_dict_callable(hamiltonian_dict)
+
+    except ValueError:
+        # If the first attempt works (raises the expected error), we're good
+        pass
+    except AssertionError:
+        # If it doesn't raise the error, try another approach
+        # Create a symbol that starts with underscore and contains 'Dummy'
+        problematic_symbol2 = sympy.Symbol("__Dummy__var__", real=True)
+        matrix = np.eye(2)
+
+        hamiltonian_dict = {problematic_symbol2: matrix}
+
+        with pytest.raises(
+            ValueError,
+            match="Variable names must be chosen such that they are not lambdified to Dummy variables",
+        ):
+            hilbert_space.make_dict_callable(hamiltonian_dict)

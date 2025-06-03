@@ -4,6 +4,7 @@ import sympy
 from functools import reduce
 import numpy as np
 import scipy
+import inspect
 from sympy.physics.quantum.operatorordering import normal_ordered_form
 
 from .pauli_strings import PauliDecomposition
@@ -90,7 +91,9 @@ def to_matrix(
             return scipy.sparse.eye(N, format="csr")
 
     dict_matrices = {}
-
+    # Expand the expression to ensure all terms are separated
+    expression = expression.expand()
+    # Iterate over each term in the expression
     for term, coeff in expression.as_coefficients_dict().items():
         term_mat = float(coeff) * eye(dimension)
         symbol = S.One
@@ -154,3 +157,72 @@ def to_operators(
         term += _term
 
     return normal_ordered_form(sympy.nsimplify(term).expand(), independent=True)
+
+
+def make_dict_callable(
+    hamiltonian_dict: dict[sympy.Expr, np.ndarray],
+) -> callable:
+    """Create a callable function from a dictionary of SymPy expressions and NumPy arrays.
+
+    This function takes a dictionary where keys are symbolic expressions (containing
+    free symbols) and values are NumPy arrays, and creates a callable function that
+    evaluates the weighted sum of the arrays based on the symbolic expressions.
+
+    Args:
+        hamiltonian_dict: A dictionary where keys are SymPy expressions (which may
+            contain free symbols) and values are NumPy arrays of the same shape.
+
+    Returns:
+        A callable function that takes values for all free symbols found in the
+        dictionary keys and returns the weighted sum: Σ(expr_value * array) where
+        expr_value is the numerical evaluation of each symbolic expression.
+
+    Raises:
+        ValueError: If any symbol names would be converted to Dummy variables by
+            SymPy's lambdify function. This typically happens with special characters
+            or reserved names.
+
+    Example:
+        ```python
+        import sympy as sp
+        import numpy as np
+
+        # Define symbolic parameters
+        x, y = sp.symbols('x y')
+
+        # Create dictionary with symbolic expressions and matrices
+        ham_dict = {
+            x: np.array([[1, 0], [0, 0]]),
+            y: np.array([[0, 1], [1, 0]])
+        }
+
+        # Create callable function
+        func = make_dict_callable(ham_dict)
+
+        # Evaluate at specific parameter values
+        result = func(x=2.0, y=1.5)  # Returns 2.0 * first_matrix + 1.5 * second_matrix
+        ```
+    """
+    all_symbols = list(
+        sympy.ordered(sum([k for k in hamiltonian_dict.keys()]).free_symbols)
+    )
+
+    array_of_expr = sympy.Array(list(hamiltonian_dict.keys()))
+    callable_expr = sympy.lambdify(all_symbols, array_of_expr, modules="numpy")
+    tensor = np.array([v for v in list(hamiltonian_dict.values())])
+
+    # check if the arguments of the callable contain dummys
+    arg_names = list(inspect.signature(callable_expr).parameters.keys())
+    if np.any(["Dummy" in name for name in arg_names]):
+        raise ValueError(
+            "Variable names must be chosen such that they are not lambdified to Dummy variables. Avoid special characters"
+        )
+
+    def func(*args, **kwargs):
+        prefac = callable_expr(*args, **kwargs)[:, None, None]
+        return np.sum(prefac * tensor, axis=0)
+
+    # adjust signature
+    func.__signature__ = inspect.signature(callable_expr)
+
+    return func
