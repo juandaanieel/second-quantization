@@ -157,7 +157,8 @@ def to_operators(
 
 
 def find(s, ch):
-    # Taken from: # https://stackoverflow.com/questions/11122291/how-to-find-char-in-string-and-get-all-the-indexes
+    # Taken from:
+    # https://stackoverflow.com/questions/11122291/how-to-find-char-in-string-and-get-all-the-indexes
     return [i for i, ltr in enumerate(s) if ltr == ch]
 
 
@@ -179,7 +180,7 @@ def string_basis(fermions):
     for i in range(size):
         reverse_bitstring = format(i, "b")[::-1]
         reverse_bitstring += "0" * (len(fermions) - len(reverse_bitstring))
-        strings.append(reverse_bitstring)
+        strings.append(reverse_bitstring[::-1])
     return strings
 
 
