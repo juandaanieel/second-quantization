@@ -5,6 +5,7 @@ from functools import reduce
 import numpy as np
 import scipy
 from sympy.physics.quantum.operatorordering import normal_ordered_form
+from typing import List
 
 from .pauli_strings import PauliDecomposition
 
@@ -156,13 +157,13 @@ def to_operators(
     return normal_ordered_form(sympy.nsimplify(term).expand(), independent=True)
 
 
-def find(s, ch):
+def find(s: str, ch: str) -> List[int]:
     # Taken from:
     # https://stackoverflow.com/questions/11122291/how-to-find-char-in-string-and-get-all-the-indexes
     return [i for i, ltr in enumerate(s) if ltr == ch]
 
 
-def string_basis(fermions):
+def string_basis(fermions: List[sympy.Expr]) -> List[str]:
     """
     Generate a list of bitstrings representing the occupation of fermions.
 
@@ -184,7 +185,7 @@ def string_basis(fermions):
     return strings
 
 
-def symbolic_basis(fermions):
+def symbolic_basis(fermions: List[sympy.Expr]) -> List[sympy.Expr]:
     """
     Generate a list of symbolic fermionic operators corresponding to the occupation of fermions.
 
