@@ -52,12 +52,28 @@ def basis_operators(
             kron, [sigma_z] * i + [sigma_minus] + [eye(2 ** (size - i - 1))]
         )
 
-    parity_operator = reduce(
-        kron,
-        [sigma_z] * size,
-    )  # Parity operator is the product of all sigma_z operators
+    return basis_operators
 
-    return basis_operators, parity_operator
+
+def parity_operator(
+    operators: list[sympy.Expr], sparse: bool
+) -> np.ndarray | scipy.sparse.csr_array:
+    """Generate the parity operator for a list of fermionic operators.
+
+    Args:
+        operators: A list of sympy expressions representing the fermionic operators.
+        sparse: A boolean flag indicating whether to return a sparse matrix.
+
+    Returns:
+        A diagonal matrix representing the parity operator, where the diagonal elements
+        are 0 for even parity and 1 for odd parity.
+    """
+    size = 2 ** len(operators)
+    parity_diag = np.bitwise_count(np.arange(size)) % 2
+    if sparse:
+        return scipy.sparse.diags(parity_diag, format="csr")
+    else:
+        return np.diag(parity_diag)
 
 
 def to_matrix(
@@ -100,7 +116,7 @@ def to_matrix(
     """
 
     if operator_dict is None:
-        operator_dict, _ = basis_operators(operators, sparse)
+        operator_dict = basis_operators(operators, sparse)
 
     dimension = 2 ** len(operators)
 

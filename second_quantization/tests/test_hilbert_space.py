@@ -158,8 +158,8 @@ def test_output_types(get_n):
     Verify that `basis_operators` returns correct types for sparse and dense formats.
     """
     list_of_fermions = get_list_of_operators(get_n)
-    basis_ops_sparse, _ = hilbert_space.basis_operators(list_of_fermions, sparse=True)
-    basis_ops_dense, _ = hilbert_space.basis_operators(list_of_fermions, sparse=False)
+    basis_ops_sparse = hilbert_space.basis_operators(list_of_fermions, sparse=True)
+    basis_ops_dense = hilbert_space.basis_operators(list_of_fermions, sparse=False)
 
     assert np.all([scipy.sparse.issparse(v) for v in basis_ops_sparse.values()])
     assert np.all([isinstance(v, np.ndarray) for v in basis_ops_dense.values()])
@@ -571,3 +571,71 @@ def test_make_dict_callable_dummy_variable_error_alternative():
             match="Variable names must be chosen such that they are not lambdified to Dummy variables",
         ):
             hilbert_space.make_dict_callable(hamiltonian_dict)
+
+
+def test_parity_operator_output_types():
+    """Test that parity_operator returns the correct output types for sparse and dense matrices."""
+    # Test with different numbers of operators
+    for n_ops in [1, 2, 3, 4]:
+        operators = [FermionOp(f"c_{i}") for i in range(n_ops)]
+
+        # Test dense output
+        parity_dense = hilbert_space.parity_operator(operators, sparse=False)
+        assert isinstance(
+            parity_dense, np.ndarray
+        ), f"Dense parity operator should return numpy array for {n_ops} operators"
+        assert (
+            parity_dense.ndim == 2
+        ), f"Parity operator should be 2D matrix for {n_ops} operators"
+        assert parity_dense.shape == (
+            2**n_ops,
+            2**n_ops,
+        ), f"Shape should be ({2**n_ops}, {2**n_ops}) for {n_ops} operators"
+
+        # Test sparse output
+        parity_sparse = hilbert_space.parity_operator(operators, sparse=True)
+        assert isinstance(
+            parity_sparse, scipy.sparse._csr.csr_matrix
+        ), f"Sparse parity operator should return CSR array for {n_ops} operators"
+        assert parity_sparse.shape == (
+            2**n_ops,
+            2**n_ops,
+        ), f"Shape should be ({2**n_ops}, {2**n_ops}) for {n_ops} operators"
+
+        # Test that sparse and dense versions have the same values
+        np.testing.assert_array_equal(
+            parity_dense,
+            parity_sparse.toarray(),
+            err_msg=f"Sparse and dense parity operators should have same values for {n_ops} operators",
+        )
+
+
+def test_parity_operator_correctness():
+    """Test that parity_operator produces mathematically correct results."""
+    # Test case 1: Single operator - should give [0, 1] on diagonal
+    operators_1 = [FermionOp("c_0")]
+    parity_1 = hilbert_space.parity_operator(operators_1, sparse=False)
+    expected_1 = np.diag([0, 1])  # |0⟩ has even parity (0), |1⟩ has odd parity (1)
+    np.testing.assert_array_equal(
+        parity_1, expected_1, err_msg="Single operator parity incorrect"
+    )
+
+    # Test case 2: Two operators - should count total number of particles mod 2
+    operators_2 = [FermionOp("c_0"), FermionOp("c_1")]
+    parity_2 = hilbert_space.parity_operator(operators_2, sparse=False)
+    # States: |00⟩, |01⟩, |10⟩, |11⟩
+    # Parities: 0,    1,    1,    0  (number of particles mod 2)
+    expected_2 = np.diag([0, 1, 1, 0])
+    np.testing.assert_array_equal(
+        parity_2, expected_2, err_msg="Two operator parity incorrect"
+    )
+
+    # Test case 3: Three operators
+    operators_3 = [FermionOp("c_0"), FermionOp("c_1"), FermionOp("c_2")]
+    parity_3 = hilbert_space.parity_operator(operators_3, sparse=False)
+    # States: |000⟩, |001⟩, |010⟩, |011⟩, |100⟩, |101⟩, |110⟩, |111⟩
+    # Parities:  0,     1,     1,     0,     1,     0,     0,     1
+    expected_3 = np.diag([0, 1, 1, 0, 1, 0, 0, 1])
+    np.testing.assert_array_equal(
+        parity_3, expected_3, err_msg="Three operator parity incorrect"
+    )
