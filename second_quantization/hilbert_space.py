@@ -6,6 +6,7 @@ import numpy as np
 import scipy
 import inspect
 from sympy.physics.quantum.operatorordering import normal_ordered_form
+from typing import List
 
 from .pauli_strings import PauliDecomposition
 
@@ -18,20 +19,19 @@ sigma_minus = np.array([[0, 1], [0, 0]])
 def basis_operators(
     operators: list[sympy.Expr], sparse: bool
 ) -> dict[sympy.Expr, np.ndarray | scipy.sparse.csr_array :]:
-    """
-    Transform from second quantized operators to matrix representation in the Fock-space.
+    """Transform from second quantized operators to matrix representation in the Fock-space.
 
-    Parameters
-    ----------
-        operators (list[sympy.Expr]):
-            A list of sympy expressions representing the operators. sparse (bool): A boolean flag indicating whether to use sparse matrices.
-    Returns
-    -------
-        dict[sympy.Expr, np.ndarray | scipy.sparse.csr_array]:
-            A dictionary where the keys are the input operators and the values are their corresponding matrix representations in the Fock-space.
+    Args:
+        operators: A list of sympy expressions representing the operators.
+        sparse: A boolean flag indicating whether to use sparse matrices.
+
+    Returns:
+        A dictionary where the keys are the input operators and the values are their
+        corresponding matrix representations in the Fock-space.
+
     Note:
-    - The `operators` list does not require its elements to be `FermionOp`.
-    - The fermion ordering follows the ordering in the list.
+        - The `operators` list does not require its elements to be `FermionOp`.
+        - The fermion ordering follows the ordering in the list.
     """
 
     if sparse:
@@ -60,24 +60,37 @@ def to_matrix(
     operators: list[sympy.physics.quantum.fermion.FermionOp],
     sparse: bool,
 ) -> dict[sympy.Expr, np.ndarray | scipy.sparse.csr_array]:
-    """
-    Transforms a sympy expression containing fermionic operators to a dictionary
-    with the matrix representation of each term.
+    """Transform a sympy expression containing fermionic operators to matrix representation.
 
-    Parameters
-    ----------
-    expression : sympy.Expr
-        A sympy expression containing fermionic operators.
-    operators : list[sympy.physics.quantum.fermion.FermionOp]
-        A list of fermionic operators.
-    sparse : bool
-        If True, the matrices will be in sparse format. Otherwise, they will be dense.
+    Takes a symbolic expression with fermionic operators and converts it to a dictionary
+    containing the matrix representation of each term, grouped by symbolic coefficients.
 
-    Returns
-    -------
-    dict[sympy.Expr, np.ndarray | scipy.sparse.csr_array]
-        A dictionary where the keys are sympy expressions and the values are the
-        corresponding matrix representations in either dense or sparse format.
+    Args:
+        expression: A sympy expression containing fermionic operators.
+        operators: A list of fermionic operators defining the basis.
+        sparse: If True, the matrices will be in sparse format. Otherwise, they will be dense.
+
+    Returns:
+        A dictionary where the keys are sympy expressions (symbolic coefficients) and
+        the values are the corresponding matrix representations in either dense or sparse format.
+
+    Example:
+        ```python
+        import sympy as sy
+        from sympy.physics.quantum.fermion import FermionOp
+        from sympy.physics.quantum import Dagger
+
+        # Define symbolic parameters and operators
+        t = sy.Symbol('t')
+        c = FermionOp('c')
+        d = FermionOp('d')
+
+        # Define an expression
+        expr = t * Dagger(c) * d
+
+        # Convert to matrix form
+        matrices = to_matrix(expr, [c, d], sparse=False)
+        ```
     """
 
     operator_dict = basis_operators(operators, sparse)
@@ -119,17 +132,16 @@ def to_operators(
     | scipy.sparse.csr_array,
     basis: list[sympy.Expr],
 ) -> sympy.Expr:
-    """
-    Parameters
-    ----------
-        matrix:
-            The matrix to be converted. It can be a dictionary with sympy expressions as keys and numpy arrays or scipy sparse arrays as values, or it can be a numpy array or a scipy sparse array directly.
-        basis (list[sympy.Expr]):
-            A list of sympy expressions representing the basis operators.
-    Returns
-    -------
-        sympy.Expr:
-            The normal ordered operator expression corresponding to the input matrix.
+    """Convert matrices back to symbolic fermionic operator expressions.
+
+    Args:
+        matrix: The matrix to be converted. It can be a dictionary with sympy expressions
+            as keys and numpy arrays or scipy sparse arrays as values, or it can be a
+            numpy array or a scipy sparse array directly.
+        basis: A list of sympy expressions representing the basis operators.
+
+    Returns:
+        The normal ordered operator expression corresponding to the input matrix.
     """
 
     if isinstance(matrix, dict):
@@ -157,6 +169,79 @@ def to_operators(
         term += _term
 
     return normal_ordered_form(sympy.nsimplify(term).expand(), independent=True)
+
+
+def find(s: str, ch: str) -> List[int]:
+    """Find all indices of a character in a string.
+
+    Args:
+        s: The string to search in.
+        ch: The character to search for.
+
+    Returns:
+        A list of indices where the character is found.
+
+    Note:
+        Taken from: https://stackoverflow.com/questions/11122291/how-to-find-char-in-string-and-get-all-the-indexes
+        Author: Stack Overflow user Lev Levitsky
+        License: CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/)
+    """
+    return [i for i, ltr in enumerate(s) if ltr == ch]
+
+
+def string_basis(fermions: List[sympy.Expr]) -> List[str]:
+    """Generate a list of bitstrings representing the occupation of fermions.
+
+    Args:
+        fermions: List of fermionic operators.
+
+    Returns:
+        List of bitstrings representing all possible occupation states.
+
+    Example:
+        For 2 fermions, returns ['00', '01', '10', '11'] representing
+        the four possible occupation states.
+    """
+    strings = []
+    size = 2 ** len(fermions)
+    for i in range(size):
+        reverse_bitstring = format(i, "b")[::-1]
+        reverse_bitstring += "0" * (len(fermions) - len(reverse_bitstring))
+        strings.append(reverse_bitstring[::-1])
+    return strings
+
+
+def symbolic_basis(fermions: List[sympy.Expr]) -> List[sympy.Expr]:
+    """Generate a list of symbolic fermionic operators corresponding to the occupation of fermions.
+
+    This function creates the symbolic representation of all possible occupation states
+    in the fermionic Fock space for the given set of fermionic operators.
+
+    Args:
+        fermions: List of fermionic operators.
+
+    Returns:
+        List of symbolic fermionic operators representing all possible occupation states.
+        The first element is always the vacuum state (represented as `sympy.S.One`),
+        followed by all single-particle states, two-particle states, etc.
+
+    Example:
+        For 2 fermions `[c, d]`, returns:
+        - `[1, d†, c†, c†*d†]` representing vacuum, single occupations, and double occupation.
+    """
+    symbols = []
+    size = 2 ** len(fermions)
+    strings = string_basis(fermions)
+
+    for i in range(size):
+        if i == 0:
+            sites = [sympy.S.One]
+        else:
+            sites = find(strings[i], "1")
+            sites = [Dagger(fermions[site]) for site in sites]
+
+        symbols.append(sympy.Mul(*sites))
+    return symbols
 
 
 def make_dict_callable(
