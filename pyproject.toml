@@ -58,5 +58,5 @@ pre-commit = ">=4.0.1,<5"
 pytest = ">=8.3.4,<9"
 
 [tool.codespell]
-skip = "*.cls,*.bst,*.bib,*.lock,*.py"
+skip = "*.cls,*.bst,*.bib,*.lock"
 ignore-words-list = "nwo,groth,braket,bra,ket"
