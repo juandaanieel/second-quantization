@@ -76,4 +76,4 @@ skip = "*.cls,*.bst,*.bib,*.lock"
 ignore-words-list = "nwo,groth,braket,bra,ket"
 
 [tool.pixi.feature.docs.tasks.docs-build]
-cmd = "cd docs && sphinx-build -b html . docs/_build/html"
+cmd = "cd docs && sphinx-build -b html . docs/build/html"
