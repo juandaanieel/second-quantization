@@ -22,6 +22,8 @@ run docs:
     key: "$CI_JOB_NAME"
     paths:
       - .pixi
+  pages:
+    publish: docs/build/html
 
 run pre-commit:
   variables:
