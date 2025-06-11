@@ -8,7 +8,7 @@ import inspect
 from sympy.physics.quantum.operatorordering import normal_ordered_form
 from typing import List
 
-from pauli_strings import PauliDecomposition
+from .pauli_strings import PauliDecomposition
 
 
 sigma_0 = np.array([[1, 0], [0, 1]])
