@@ -58,7 +58,7 @@ def get_list_of_operators(get_n):
     Returns:
         List[FermionOp]: List of Fermion operators.
     """
-    return [FermionOp(f"c_{i}") for i in range(get_n)]
+    return [FermionOp("c_i") for i in range(get_n)]
 
 
 def get_list_of_reals(get_n):
@@ -71,7 +71,7 @@ def get_list_of_reals(get_n):
     Returns:
         Tuple[sympy.Symbol]: Tuple of real-valued sympy symbols.
     """
-    return sympy.symbols([f"a_{i}" for i in range(get_n)], real=True)
+    return sympy.symbols(["a_i" for i in range(get_n)], real=True)
 
 
 def get_diagonal_term(ops, symbs):
@@ -147,7 +147,7 @@ def build_random_hamiltonian(get_n, get_combinations):
         + sum([s * hop for s, hop in zip(hopping_symbs, hopping)])
         + sum([s * pair for s, pair in zip(hopping_symbs, supercond)])
     )
-    return hamiltonian
+    return hamiltonian, ops
 
 
 # Tests
@@ -421,6 +421,27 @@ def test_make_dict_callable_zero_values():
     expected = np.zeros((2, 2))
 
     np.testing.assert_array_almost_equal(result, expected)
+
+
+def test_make_dict_callable_output_types():
+    """Test make_dict_callable random matrices for their output types."""
+    x, y = sympy.symbols("x y", real=True)
+
+    matrix_x = np.random.random((50, 50))
+    matrix_y = np.random.random((50, 50))
+
+    hamiltonian_dict = {x: matrix_x, y: matrix_y}
+    func = hilbert_space.make_dict_callable(hamiltonian_dict)
+
+    assert isinstance(func(*np.random.random(2)), np.ndarray)
+
+    hamiltonian_dict = {
+        x: scipy.sparse.csr_array(matrix_x),
+        y: scipy.sparse.csr_array(matrix_y),
+    }
+    func = hilbert_space.make_dict_callable(hamiltonian_dict)
+
+    assert scipy.sparse.issparse(func(*np.random.random(2)))
 
 
 def test_make_dict_callable_keyword_arguments():
