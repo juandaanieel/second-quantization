@@ -8,7 +8,7 @@ import inspect
 from sympy.physics.quantum.operatorordering import normal_ordered_form
 from typing import List
 
-from .pauli_strings import PauliDecomposition
+from pauli_strings import PauliDecomposition
 
 
 sigma_0 = np.array([[1, 0], [0, 1]])
@@ -319,6 +319,7 @@ def make_dict_callable(
     array_of_expr = sympy.Array(list(hamiltonian_dict.keys()))
     callable_expr = sympy.lambdify(all_symbols, array_of_expr, modules="numpy")
     tensor = np.array([v for v in list(hamiltonian_dict.values())])
+    sum_rule = [None for _ in range(len(tensor.shape) - 1)]
 
     # check if the arguments of the callable contain dummys
     arg_names = list(inspect.signature(callable_expr).parameters.keys())
@@ -328,7 +329,7 @@ def make_dict_callable(
         )
 
     def func(*args, **kwargs):
-        prefac = callable_expr(*args, **kwargs)[:, None, None]
+        prefac = callable_expr(*args, **kwargs)[:, *sum_rule]
         return np.sum(prefac * tensor, axis=0)
 
     # adjust signature
