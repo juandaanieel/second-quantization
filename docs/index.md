@@ -24,7 +24,7 @@ Here we illustrate how to define a simple Hamiltonian and convert it to matrix f
 
 ```python
 import sympy
-from sympy.physics.quantum import FermionOp
+from sympy.physics.quantum.fermion import FermionOp
 from sympy.physics.quantum import Dagger
 
 from second_quantization import hilbert_space
@@ -44,6 +44,19 @@ hamiltonian = (
 # Obtain the matrix representation of the Hamiltonian
 matrix_form = hilbert_space.to_matrix(hamiltonian, operators=fermions, sparse=False)
 f_hamiltonian = hilbert_space.make_dict_callable(hamiltonian)
+```
+
+## Install
+To install the `second_quantization` package, you can use pip:
+
+```bash
+pip install git+https://gitlab.kwant-project.org/qt/second_quantization.git
+```
+
+Or you can use `pixi`:
+
+```bash
+pixi add --pypi git+https://gitlab.kwant-project.org/qt/second_quantization.git
 ```
 
 ## Tutorials
