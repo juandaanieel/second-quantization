@@ -54,7 +54,6 @@ docs = { features = ["docs"], solve-group = "mid" }
 
 [tool.pixi.pypi-dependencies]
 second_quantization = { path = ".", editable = true }
-quspin = { version = ">=1.0.0,<2", editable = true }
 
 [tool.pixi.tasks]
 
