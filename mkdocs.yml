@@ -1,0 +1,27 @@
+site_name: second-quantization
+docs_dir: notes
+site_dir: public
+
+theme:
+  name: material
+  palette:
+    primary: white
+
+plugins:
+  - mkdocstrings
+  - execute
+  - search
+
+markdown_extensions:
+  - pymdownx.highlight:
+      use_pygments: true
+  - pymdownx.superfences
+  - footnotes
+
+extra_javascript:
+  - javascript/katex.js
+  - https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.7/katex.min.js
+  - https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.7/contrib/auto-render.min.js
+
+extra_css:
+  - https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.7/katex.min.css
