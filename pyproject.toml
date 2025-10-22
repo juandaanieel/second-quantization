@@ -17,7 +17,7 @@ dependencies = [
     "sphinx-copybutton>=0.5.0,<1",
     "sphinx-design>=0.6.0,<1",
     "linkify-it-py>=2.0.0,<3",
-    "packaging>=22.0", "mkdocs-execute-plugin>=0.0.9,<0.0.10", "mkdocstrings>=0.30.1,<0.31", "mkdocstrings-python>=1.18.2,<2",  # For version parsing
+    "packaging>=22.0", "mkdocstrings>=0.30.1,<0.31", "mkdocstrings-python>=1.18.2,<2", "quspin>=1.0.0,<2", "mkdocs-execute-plugin>=0.0.9,<0.0.10",  # For version parsing
 ]
 readme = "README.md"
 classifiers = [
@@ -73,6 +73,7 @@ mkdocs = ">=1.6.1,<2"
 mkdocs-material = ">=9.6.22,<10"
 mkdocs-bibtex = ">=4.4.0,<5"
 click = ">=8.3.0,<9"
+numba = ">=0.62.1,<0.63"
 
 [tool.codespell]
 skip = "*.cls,*.bst,*.bib,*.lock"

@@ -9,8 +9,8 @@ theme:
 
 plugins:
   - mkdocstrings
-  - execute
   - search
+  - execute
 
 markdown_extensions:
   - pymdownx.highlight:
