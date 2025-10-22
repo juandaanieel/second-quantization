@@ -23,7 +23,7 @@ run docs:
     paths:
       - .pixi
   pages:
-    publish: docs/build/html
+    publish: build/html
 
 run pre-commit:
   variables:

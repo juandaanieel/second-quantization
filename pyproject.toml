@@ -78,4 +78,4 @@ skip = "*.cls,*.bst,*.bib,*.lock"
 ignore-words-list = "nwo,groth,braket,bra,ket"
 
 [tool.pixi.feature.docs.tasks.docs-build]
-cmd = "mkdocs build --site-dir docs/build/html"
+cmd = "mkdocs build --site-dir build/html"
