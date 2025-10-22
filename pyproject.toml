@@ -38,7 +38,7 @@ include = [
 build-backend = "hatchling.build"
 requires = ["hatchling", "hatch-vcs"]
 
-[tool.pixi.project]
+[tool.pixi.workspace]
 channels = ["conda-forge"]
 platforms = ["linux-64", 'osx-64']
 
