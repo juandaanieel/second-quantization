@@ -72,6 +72,7 @@ requests = ">=2.0.0,<3"
 mkdocs = ">=1.6.1,<2"
 mkdocs-material = ">=9.6.22,<10"
 mkdocs-bibtex = ">=4.4.0,<5"
+click = ">=8.3.0,<9"
 
 [tool.codespell]
 skip = "*.cls,*.bst,*.bib,*.lock"
