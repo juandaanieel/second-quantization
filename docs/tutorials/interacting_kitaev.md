@@ -4,7 +4,7 @@ execute: true
 
 # Interacting Kitaev Chain
 
-The Kitaev chain is a landmark model in condensed matter physics, describing a one-dimensional system of spinless fermions that exhibits **topological superconductivity**. In its non-interacting form, the model supports Majorana zero modes at its boundaries—exotic quasiparticles that are promising candidates for topological quantum computing.
+[The Kitaev chain](https://iopscience.iop.org/article/10.1070/1063-7869/44/10S/S29) is a landmark model in condensed matter physics, describing a one-dimensional system of spinless fermions that exhibits **topological superconductivity**. In its non-interacting form, the model supports Majorana zero modes at its boundaries—exotic quasiparticles that are promising candidates for topological quantum computing.
 
 In this tutorial, we extend the standard Kitaev chain by adding **nearest-neighbor Coulomb interactions**. This modification breaks the model's exact solvability and enables the exploration of rich many-body physics, including interaction-driven phase transitions and correlation effects.
 
@@ -22,6 +22,7 @@ Let's get started!
 import sympy
 from sympy.physics.quantum.fermion import FermionOp
 from sympy.physics.quantum import Dagger
+from IPython.display import display
 
 # Numerical tools
 import numpy as np
