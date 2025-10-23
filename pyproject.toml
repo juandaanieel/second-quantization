@@ -7,10 +7,10 @@ dynamic = ["version"]
 
 requires-python = ">= 3.11"
 dependencies = [
-    "numpy>=1.24",
-    "scipy>=1.10",
+    "numpy>=2.0",
     "sympy>=1.13",
-    "packaging>=22.0",  # For version parsing
+    "scipy>=1.8",
+    "packaging>=22.0",
 ]
 readme = "README.md"
 classifiers = [
@@ -38,9 +38,13 @@ include = [
 build-backend = "hatchling.build"
 requires = ["hatchling", "hatch-vcs"]
 
-[tool.pixi.project]
+[tool.pixi.workspace]
 channels = ["conda-forge"]
 platforms = ["linux-64", 'osx-64']
+
+[tool.pixi.environments]
+default = { solve-group = "default" }
+docs = { features = ["docs"], solve-group = "mid" }
 
 [tool.pixi.pypi-dependencies]
 second_quantization = { path = ".", editable = true }
@@ -49,14 +53,38 @@ second_quantization = { path = ".", editable = true }
 
 [tool.pixi.dependencies]
 ipykernel = ">=6.29.5,<7.0.0"
-numpy = ">=2.2.0,<2.4.0"
-scipy = ">=1.14.0,<1.16.0"
+numpy = ">=2.0.0,<2.1.0"
 sympy = ">=1.13.0,<1.15.0"
-packaging = "*"
 git = ">=2.47.1,<3"
 pre-commit = ">=4.0.1,<5"
 pytest = ">=8.3.4,<9"
+jax = ">=0.6.0,<0.7"
+matplotlib-base = ">=3.10.3,<4"
+requests = ">=2.0.0,<3"
+click = ">=8.3.0,<9"
+numba = ">=0.62.1,<0.63"
+
+[tool.pixi.feature.docs.dependencies]
+mkdocs = ">=1.6.1,<2"
+mkdocs-material = ">=9.6.22,<10"
+mkdocs-bibtex = ">=4.4.0,<5"
+nbconvert = ">=7.16.4,<8"
+jupytext = ">=1.16.6,<2"
+markdown = ">=3.6,<4"
+pymdown-extensions = ">=10.14.3,<11"
+openfermion = ">=0.11.0,<0.12"
+
+
+[tool.pixi.feature.docs.pypi-dependencies]
+second_quantization = { path = ".", editable = true }
+mkdocs-execute-plugin = ">=0.0.9,<0.0.10"
+mkdocstrings = ">=0.30.1,<0.31"
+mkdocstrings-python = ">=1.18.2,<2"
+quspin = ">=1.0.0,<2"
 
 [tool.codespell]
 skip = "*.cls,*.bst,*.bib,*.lock"
 ignore-words-list = "nwo,groth,braket,bra,ket"
+
+[tool.pixi.feature.docs.tasks.docs-build]
+cmd = "mkdocs build --site-dir build/html"
