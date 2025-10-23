@@ -5,7 +5,7 @@ site_dir: public
 theme:
   name: material
   palette:
-    primary: white
+    primary: black
 
 plugins:
   - mkdocstrings

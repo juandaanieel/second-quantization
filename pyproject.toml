@@ -7,7 +7,7 @@ dynamic = ["version"]
 
 requires-python = ">= 3.11"
 dependencies = [
-    "numpy>=1.24",
+    "numpy>=2.0",
     "sympy>=1.13",
     "scipy>=1.8",
     "packaging>=22.0",
@@ -76,6 +76,7 @@ openfermion = ">=0.11.0,<0.12"
 
 
 [tool.pixi.feature.docs.pypi-dependencies]
+second_quantization = { path = ".", editable = true }
 mkdocs-execute-plugin = ">=0.0.9,<0.0.10"
 mkdocstrings = ">=0.30.1,<0.31"
 mkdocstrings-python = ">=1.18.2,<2"
