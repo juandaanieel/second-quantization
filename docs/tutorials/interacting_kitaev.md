@@ -4,9 +4,18 @@ execute: true
 
 # Interacting Kitaev Chain
 
-In this tutorial, we demonstrate how to use the `second_quantization` package to model and analyze an interacting Kitaev chain.
-The Kitaev chain is a one-dimensional model of spinless fermions that exhibits topological superconductivity.
-By introducing interactions nearest-neighbor Coulomb interactions, we can explore more complex phenomena such as many-body localization.
+The Kitaev chain is a landmark model in condensed matter physics, describing a one-dimensional system of spinless fermions that exhibits **topological superconductivity**. In its non-interacting form, the model supports Majorana zero modes at its boundaries—exotic quasiparticles that are promising candidates for topological quantum computing.
+
+In this tutorial, we extend the standard Kitaev chain by adding **nearest-neighbor Coulomb interactions**. This modification breaks the model's exact solvability and enables the exploration of rich many-body physics, including interaction-driven phase transitions and correlation effects.
+
+We'll demonstrate how to:
+
+1. Construct the symbolic Hamiltonian using fermionic operators
+2. Convert it to matrix form with `second_quantization`
+3. Leverage parity conservation for efficient diagonalization
+4. Compute phase diagrams as a function of different system parameters
+
+Let's get started!
 
 ```python
 # Symbolic tools
@@ -23,9 +32,11 @@ from scipy.sparse.linalg import eigsh
 from second_quantization import hilbert_space
 ```
 
-## Define Hamiltonian
+## Constructing the Hamiltonian
 
-The first step is to define the fermionic operators that will be used to construct the Hamiltonian.
+### Step 1: Define Fermionic Operators
+
+We begin by creating fermionic annihilation operators $c_i$ for each site in our chain:
 
 ```python
 # Define the number of sites in the chain and fermionic operators
@@ -34,53 +45,79 @@ names = ["c_{i}".format(i=i) for i in range(length)]
 fermions = [FermionOp(name) for name in names]
 ```
 
-Using `fermions`, we now define the Hamiltonian of the interacting Kitaev chain.
+### Step 2: Build the Symbolic Hamiltonian
+
+The interacting Kitaev Hamiltonian includes four key terms:
+
+1. **Hopping** ($t$): Nearest-neighbor kinetic energy
+2. **Superconducting pairing** ($\Delta$): Anomalous p-wave pairing that induces superconductivity
+3. **Chemical potential** ($\mu_i$): Controls the energy at each site
+4. **Coulomb interaction** ($U$): Nearest-neighbor density-density repulsion
+
+Let's construct each term symbolically:
 
 ```python
 # Define symbols for the Hamiltonian parameters
 t, Delta, U = sympy.symbols("t Delta, U", real=True, positive=True)
 mus = sympy.symbols(" ".join(f"mu_{i}" for i in range(length)), real=True)
 
-# Define the interacting Kitaev chain Hamiltonian
-H = t * sum(Dagger(a) * b for a, b in zip(fermions, fermions[1:]))  # Hopping
-H += Delta * sum(Dagger(a) * Dagger(b) for a, b in zip(fermions, fermions[1:]))  # Pairing
+# Hopping term: -t Σ (c†ᵢ cᵢ₊₁ + h.c.)
+H = t * sum(Dagger(a) * b for a, b in zip(fermions, fermions[1:]))
+
+# Pairing term: Δ Σ (c†ᵢ c†ᵢ₊₁ + h.c.)
+H += Delta * sum(Dagger(a) * Dagger(b) for a, b in zip(fermions, fermions[1:]))
+
+# Add Hermitian conjugate for hopping and pairing
 H += Dagger(H)
 
-for i, mu in enumerate(mus):
-    H += mu * Dagger(fermions[i]) * fermions[i] # Chemical potential
+# Chemical potential: Σ μᵢ c†ᵢ cᵢ
 
-H += U * sum(Dagger(a) * a * Dagger(b) * b for a, b in zip(fermions, fermions[1:])) # Nearest-neighbor Coulomb interaction
+for i, mu in enumerate(mus):
+    H += mu * Dagger(fermions[i]) * fermions[i]
+
+# Interaction term: U Σ nᵢ nᵢ₊₁ where nᵢ = c†ᵢ cᵢ
+H += U * sum(Dagger(a) * a * Dagger(b) * b for a, b in zip(fermions, fermions[1:]))
 ```
 
-The total Hamiltonian is:
+Let's examine the complete Hamiltonian in factored form:
 
 ```python
 display(sympy.Eq(sympy.Symbol("H"), H.factor()))
 ```
 
-With both the fermionic operators and Hamiltonian defined, we can now proceed to build the matrix representation of the Hamiltonian.
-The typical workflow of `second-quantization` involves two main steps:
+### Step 3: Convert to Matrix Form
 
-- Converting the symbolic Hamiltonian into its matrix representation using `hilbert_space.to_matrix`.
+Now comes the key step: transforming our symbolic Hamiltonian into a numerical matrix. The `second_quantization` workflow involves:
 
-- Creating a callable function that generates the Hamiltonian matrix for given parameter values using `hilbert_space.make_dict_callable`.
+1. **`to_matrix`**: Maps fermionic operators to their matrix representations using the Jordan-Wigner transformation
+2. **`make_dict_callable`**: Creates a callable function that efficiently generates Hamiltonian matrices for any parameter values
 
 ```python
-
+# Build the symbolic-to-matrix mapping
 terms = hilbert_space.to_matrix(H, operators=fermions, sparse=True)
+
+# Create a callable function H(t, Delta, U, mu_0, ..., mu_7)
 f_hamiltonian = hilbert_space.make_dict_callable(terms)
 ```
 
+This approach separates the (expensive) symbolic processing from the (cheap) numerical evaluation, making parameter sweeps extremely efficient.
 
-## Diagonalize Hamiltonian with Parity Superselection Rules
+## Efficient Diagonalization with Parity Conservation
 
-Simulating quantum mechanical systems typically requires to find the eigenvalues and eigenvectors of the Hamiltonian.
-In fermionic systems, the Hamiltonian exhibits a block-diagonal structure due to parity conservation.
-Therefore, we can optimize the diagonalization process by separating the Hamiltonian into even and odd parity subspaces.
+### Exploiting Symmetry
+
+Fermionic systems conserve **fermion parity**—the total number of fermions modulo 2. This means the Hamiltonian is block-diagonal in the parity basis:
 
 ```python
 parity_operator = hilbert_space.parity_operator(fermions, sparse=True)
 ```
+
+By diagonalizing the even and odd parity blocks separately, we can:
+
+- **Reduce computational cost** by working with smaller matrices
+- **Compute ground states** in specific parity sectors
+
+Here's a function that performs parity-resolved diagonalization:
 
 ```python
 def fermionic_eigsh(hamiltonian, parity, k=6):
@@ -143,38 +180,53 @@ def fermionic_eigsh(hamiltonian, parity, k=6):
     return evals, evecs
 ```
 
-Now we can study the spectrum of the interacting Kitaev chain as a function of the interaction strength `U` and chemical potential `mu`.
+## Computing the Phase Diagram
+
+Now we'll compute how the energy gap between the ground state and first excited state varies with interaction strength $U$ and chemical potential $\mu$. This gap is crucial for understanding topological protection and phase transitions.
 
 ```python
 # Define parameters
 t_val = 1.1
-Delta_val = 2.2
-mu_val = np.linspace(-3, 3, 25)
+mu_val = np.linspace(0, 6, 25)
 
 U_values = np.linspace(0, 4, 26)
 energies = []
 
 for U_val in U_values:
+    Delta_val = t_val + U_val / 2  # Example relation between Delta and U
     for _mu in mu_val:
+        # Build parameter dictionary
         param_dict = {'t': t_val, 'Delta': Delta_val, 'U': U_val}
-        for i, mu_sym in enumerate(mus):
-            param_dict[str(mu_sym)] = _mu
 
+        # Set site-dependent chemical potentials (accounting for interaction shift)
+        for i, mu in enumerate(mus):
+            if i > 0 and i < length - 1:
+                # Bulk sites: full interaction correction
+                param_dict[str(mu)] = _mu - U_val
+            else:
+                # Edge sites: half interaction correction
+                param_dict[str(mu)] = _mu - U_val / 2
+
+        # Generate Hamiltonian and diagonalize
         H_matrix = f_hamiltonian(**param_dict)
         evals, _ = fermionic_eigsh(H_matrix, parity_operator, k=8)
         energies.append(evals)
 
+# Reshape and compute gap
 energies = np.array(energies).reshape(len(U_values), len(mu_val), 2, -1)
 gs_energy = energies[:, :, 1, 0] - energies[:, :, 0, 0]
 ```
+
+### Visualization
+
 Finally, we can visualize the low-energy spectrum of the interacting Kitaev chain.
 
 ```python
-fig, ax = plt.subplots(figsize=(8, 6))
+fig, ax = plt.subplots(figsize=(6, 6))
 im = ax.pcolormesh(
     U_values,
     mu_val,
-    gs_energy.T,
+    np.abs(gs_energy.T),
     shading="auto",
     cmap="viridis",
 )
@@ -186,3 +238,12 @@ cbar = plt.colorbar(im, ax=ax)
 cbar.set_label("Energy Gap")
 plt.show()
 ```
+
+## Summary
+This tutorial demonstrates how `second_quantization` makes it straightforward to:
+
+1. Build complex many-body Hamiltonians symbolically
+2. Leverage symmetries for efficient computation
+3. Explore phase diagrams across parameter space
+
+The same workflow applies to arbitrary fermionic systems—from Hubbard models to quantum dots to topological superconductors!

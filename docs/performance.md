@@ -2,19 +2,20 @@
 execute: true
 ---
 
-# Performance
+# Performance Benchmarks
 
-In this tutorial, we will compare the performance of `second-quantization` with two other popular many-body quantum simulation libraries:
+How does `second_quantization` compare to established quantum simulation libraries? In this benchmark, we evaluate the performance of our package against two popular alternatives:
 
 - [`OpenFermion`](https://github.com/quantumlib/OpenFermion)
 - [`QuSpin`](https://quspin.github.io/QuSpin/)
 
-In particular, we will compare the time taken to build the Hamiltonian of a chain of fermions.
-Because our package focuses on finding the matrix representation of a symbolic Hamiltonian, the time required to diagonalise the Hamiltonian is not considered here.
+We focus on the time required to construct the Hamiltonian matrix for a chain of spinful fermions. Since `second_quantization` is designed for symbolic-to-matrix conversion, we don't benchmark diagonalization times (which are identical across packages once the matrix is built).
 
 ## Setup
 
-1. First we import the necessary libraries.
+### Import Libraries
+
+First, we import the necessary tools from each package:
 
 ```python
 import time
@@ -35,7 +36,15 @@ from openfermion.transforms import get_sparse_operator
 from openfermion.ops import FermionOperator
 ```
 
-2. We define a function to build the Hamiltonian for a chain of spinful fermions using `second-quantization`.
+### Define the Test System
+
+We construct a spinful fermion chain with:
+
+- **Nearest-neighbor hopping** (kinetic energy for spin-up and spin-down)
+- **Onsite Coulomb interaction** (repulsion between opposite spins on the same site)
+- **Chemical potential** (controls the average particle number)
+
+Here's the implementation for `second_quantization`:
 
 ```python
 def build_spinful_chain_hamiltonian(n):
@@ -70,14 +79,16 @@ def build_spinful_chain_hamiltonian(n):
     return H, ops
 ```
 
-We illustrate the Hamiltonian for a small system with `n=2` sites.
+Let's visualize the Hamiltonian for a small two-site system:
 
 ```python
 H, ops = build_spinful_chain_hamiltonian(2)
 sympy.Eq(sympy.Symbol('H'), H.factor())
 ```
 
-3. We define the corresponding functions for `QuSpin` and `OpenFermion`.
+### Implementations for Other Libraries
+
+For a fair comparison, we implement the same Hamiltonian in OpenFermion and QuSpin:
 
 ```python
 def build_spinful_chain_hamiltonian_openfermion(n, t=1.0, U=1.0, mu=0.0):
@@ -133,13 +144,15 @@ def quspin_sparse_hamiltonian(L):
     return static, basis, time_basis
 ```
 
-## Benchmarking
+## Benchmark Methodology
 
-We will benchmark two aspects of the Hamiltonian construction:
+We measure two key performance metrics:
 
-- Time required to setup the simulation. This includes building the basis and Hamiltonian representation, but not constructing the sparse matrix.
+### Setup Time
+The time required to prepare the computational infrastructure—building operator bases and symbolic representations—before matrix construction.
 
-- Time required to build the sparse matrix representation of the Hamiltonian.
+### Matrix Construction Time
+The time to build the actual sparse matrix representation of the Hamiltonian.
 
 ```python tags=["hide-cell"]
 sparse_times_quspin = []
@@ -188,7 +201,7 @@ for i, n in enumerate(ns):
 
 ## Results
 
-We plot the time taken to setup up the simulation and to build the sparse matrix representation of the Hamiltonian as a function of the number of fermions.
+The following plots compare the three libraries across system sizes (number of fermionic modes):
 
 ```python tags=["hide-input"]
 fig, axs = plt.subplots(ncols=2, figsize=(7, 3))
@@ -218,17 +231,26 @@ plt.tight_layout()
 plt.show()
 ```
 
-## Reusability
+## Reusability Advantage
 
-An important aspect of `second-quantization` is that the basis operators can be reused to build multiple Hamiltonians without recomputing the basis each time.
-After creating the Hamiltonian once, creating an instance with a different parameter configuration takes very little time:
+A unique strength of `second_quantization` is the ability to **reuse Hamiltonian matrix representation** across multiple parameter choices. Once you've built the symbolic structure, generating matrices with different parameter values is extremely fast:
 
 ```python
 H, ops = build_spinful_chain_hamiltonian(n)
 H_dict = hilbert_space.to_matrix(H, operators=ops, sparse=True)
 f_H = hilbert_space.make_dict_callable(H_dict)
 
-# total time for 100 runs
-t = timeit(stmt='f_H(U=1, t=1, mu=.1)', number=100, globals=globals())
-print("Time per-call (s):", t / 100)
+# total time for 50 runs
+t = timeit(stmt='f_H(U=1, t=1, mu=.1)', number=50, globals=globals())
+print("Time per-call (s):", t / 50)
 ```
+
+This makes `second_quantization` particularly well-suited for:
+
+- **Parameter sweeps** and phase diagram calculations
+- **Variational algorithms** requiring many Hamiltonian evaluations
+- **Machine learning** pipelines with parameterized quantum systems
+
+## Summary
+
+`second_quantization` delivers competitive performance while offering a flexible, symbolic workflow. The ability to separate symbolic construction from numerical evaluation makes it an excellent choice for research workflows that require exploring multiple parameter regimes.
