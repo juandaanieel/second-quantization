@@ -1,90 +1,124 @@
-[project]
-authors = [{name = "Quantum Tinkerers"}]
-description = "Converting second quantized operators to matrix form and back"
-name = "second_quantization"
-dynamic = ["version"]
-# This project follows https://scientific-python.org/specs/spec-0000/
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
 
-requires-python = ">= 3.11"
-dependencies = [
-    "numpy>=2.0",
-    "sympy>=1.13",
-    "scipy>=1.8",
-    "packaging>=22.0",
-]
+[project]
+name = "second_quantization"
+description = "Converting second quantized operators to matrix form and back"
 readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Quantum Tinkerers" }]
+license = { file = "LICENSE" }
+keywords = ["second quantization", "quantum", "operators", "linear algebra"]
+dynamic = ["version"]
+
+dependencies = [
+  "numpy>=2.0",
+  "sympy>=1.13",
+  "scipy>=1.8",
+  "packaging>=22.0",
+]
+
 classifiers = [
-    "Development Status :: 2 - Pre-Alpha",
-    "License :: OSI Approved :: BSD License",
-    "Intended Audience :: Science/Research",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
+  "Development Status :: 2 - Pre-Alpha",
+  "License :: OSI Approved :: BSD License",
+  "Intended Audience :: Science/Research",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+]
+
+[project.urls]
+"Documentation" = "https://qt.pages.quantumtinkerer.group/second_quantization/index.html"
+"Repository" = "https://gitlab.kwant-project.org/qt/second_quantization"
+"Bug Tracker" = "https://gitlab.kwant-project.org/qt/second_quantization/-/issues"
+
+[project.optional-dependencies]
+docs = [
+  "mkdocs>=1.6",
+  "mkdocs-material>=9.6",
+  "mkdocstrings>=0.30",
+  "mkdocstrings-python>=1.8",
+  "mkdocs-bibtex>=4.4",
+  "markdown>=3.6",
+  "pymdown-extensions>=10.14",
+]
+test = [
+  "pytest>=8.3",
+  "pytest-cov>=6",
+  "pytest-randomly>=3.15",
+  "pytest-repeat>=0.9",
+  "pytest-regressions",
+  "ruff>=0.9",
 ]
 
 [tool.hatch.version]
 source = "vcs"
+
 [tool.hatch.build.hooks.vcs]
 version-file = "second_quantization/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["second_quantization"]
+
 [tool.hatch.build.targets.sdist]
-include = [
-    "second_quantization",
-    "README.md",
-    "LICENSE",
-    "pyproject.toml",
-]
+include = ["second_quantization", "README.md", "LICENSE", "pyproject.toml"]
 
-[build-system]
-build-backend = "hatchling.build"
-requires = ["hatchling", "hatch-vcs"]
-
-[tool.pixi.workspace]
-channels = ["conda-forge"]
-platforms = ["linux-64", 'osx-64']
-
-[tool.pixi.environments]
-default = { solve-group = "default" }
-docs = { features = ["docs"], solve-group = "mid" }
-
-[tool.pixi.pypi-dependencies]
-second_quantization = { path = ".", editable = true }
-
-[tool.pixi.tasks]
-
-[tool.pixi.dependencies]
-ipykernel = ">=6.29.5,<7.0.0"
-numpy = ">=2.0.0,<2.1.0"
-sympy = ">=1.13.0,<1.15.0"
-git = ">=2.47.1,<3"
-pre-commit = ">=4.0.1,<5"
-pytest = ">=8.3.4,<9"
-jax = ">=0.6.0,<0.7"
-matplotlib-base = ">=3.10.3,<4"
-requests = ">=2.0.0,<3"
-click = ">=8.3.0,<9"
-numba = ">=0.62.1,<0.63"
-
-[tool.pixi.feature.docs.dependencies]
-mkdocs = ">=1.6.1,<2"
-mkdocs-material = ">=9.6.22,<10"
-mkdocs-bibtex = ">=4.4.0,<5"
-nbconvert = ">=7.16.4,<8"
-jupytext = ">=1.16.6,<2"
-markdown = ">=3.6,<4"
-pymdown-extensions = ">=10.14.3,<11"
-openfermion = ">=0.11.0,<0.12"
-
-
-[tool.pixi.feature.docs.pypi-dependencies]
-second_quantization = { path = ".", editable = true }
-mkdocs-execute-plugin = ">=0.0.9,<0.0.10"
-mkdocstrings = ">=0.30.1,<0.31"
-mkdocstrings-python = ">=1.18.2,<2"
-quspin = ">=1.0.0,<2"
+# Optional: keep artifacts slim
+[tool.hatch.build]
+exclude = ["tests", "docs", ".github", ".gitlab-ci.yml"]
 
 [tool.codespell]
 skip = "*.cls,*.bst,*.bib,*.lock"
 ignore-words-list = "nwo,groth,braket,bra,ket"
 
-[tool.pixi.feature.docs.tasks.docs-build]
-cmd = "mkdocs build --site-dir build/html"
+# ---------- Pixi (envs + tasks) ----------
+[tool.pixi.project]
+channels = ["https://prefix.dev/conda-forge"]
+platforms = ["osx-arm64", "linux-64", "win-64"]
+
+# Shared dev tooling for the default env
+[tool.pixi.dependencies]
+python = ">=3.12,<3.13"
+numpy = ">=2.0.0,<2.1.0"
+sympy = ">=1.13.0,<1.15.0"
+scipy = ">=1.11,<2"
+pytest = ">=8.3.4,<9"
+pytest-cov = ">=6,<7"
+ruff = ">=0.9.6,<0.10"
+pre-commit = ">=4.0.1,<5"
+git = ">=2.47.1,<3"
+matplotlib-base = ">=3.10,<4"
+
+# PyPI install of your package in editable mode for dev
+[tool.pixi.pypi-dependencies]
+second_quantization = { path = ".", editable = true }
+
+# Optional feature for docs only
+[tool.pixi.feature.docs.dependencies]
+mkdocs = ">=1.6.1,<2"
+mkdocs-material = ">=9.6.22,<10"
+mkdocs-bibtex = ">=4.4.0,<5"
+mkdocstrings = ">=0.30.1,<0.31"
+mkdocstrings-python = ">=1.18.2,<2"
+markdown = ">=3.6,<4"
+pymdown-extensions = ">=10.14.3,<11"
+openfermion = ">=0.11.0,<0.12"
+
+[tool.pixi.feature.docs.pypi-dependencies]
+quspin = ">=1.0.0,<2"
+mkdocs-execute-plugin = ">=0.0.9,<0.0.10"
+
+[tool.pixi.environments]
+default = { solve-group = "default" }
+docs    = { features = ["docs"], solve-group = "default" }
+
+[tool.pixi.tasks]
+tests = {cmd = "pytest -v"}
+docs-serve = "mkdocs serve"
+docs-build = "mkdocs build --site-dir public"
+format = "ruff format ."
+lint = "ruff check ."
+pre-commit = "pre-commit run --all-files"
+build = "hatch build"
+publish = "hatch publish -u __token__"
