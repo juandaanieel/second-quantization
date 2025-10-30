@@ -126,6 +126,6 @@ docs    = { features = ["docs"], solve-group = "default" }
 tests = {cmd = "pytest -v"}
 format = "ruff format ."
 lint = "ruff check ."
-pre-commit = "pre-commit run --all-files"
+pre-commit = "pre-commit"
 build = "hatch build"
 publish = "hatch publish -u __token__"
