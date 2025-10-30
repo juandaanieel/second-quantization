@@ -103,6 +103,7 @@ mkdocstrings = ">=0.30.1,<0.31"
 mkdocstrings-python = ">=1.18.2,<2"
 markdown = ">=3.6,<4"
 pymdown-extensions = ">=10.14.3,<11"
+openfermion = ">=1.7"
 
 [tool.pixi.feature.docs.pypi-dependencies]
 mkdocs-execute-plugin = ">=0.0.9,<0.0.10"
@@ -112,7 +113,6 @@ quspin = ">=1.0.0,<2"
 
 [tool.pixi.feature.docs.target.osx-arm64.pypi-dependencies]
 quspin = ">=1.0.0,<2"
-openfermion = ">=1.7"
 
 [tool.pixi.feature.docs.tasks]
 docs-serve = "mkdocs serve"
