@@ -103,7 +103,7 @@ mkdocstrings = ">=0.30.1,<0.31"
 mkdocstrings-python = ">=1.18.2,<2"
 markdown = ">=3.6,<4"
 pymdown-extensions = ">=10.14.3,<11"
-openfermion = ">=1.7"
+openfermion = ">=0.11, <0.12"
 
 [tool.pixi.feature.docs.pypi-dependencies]
 mkdocs-execute-plugin = ">=0.0.9,<0.0.10"
