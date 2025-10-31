@@ -41,7 +41,7 @@ We begin by creating fermionic annihilation operators $c_i$ for each site in our
 
 ```python
 # Define the number of sites in the chain and fermionic operators
-length = 8
+length = 6
 names = ["c_{i}".format(i=i) for i in range(length)]
 fermions = [FermionOp(name) for name in names]
 ```
@@ -188,9 +188,9 @@ Now we'll compute how the energy gap between the ground state and first excited 
 ```python
 # Define parameters
 t_val = 1.1
-mu_val = np.linspace(0, 6, 25)
+mu_val = np.linspace(0, 6, 55)
 
-U_values = np.linspace(0, 4, 26)
+U_values = np.linspace(-4, 4, 56)
 energies = []
 
 for U_val in U_values:
@@ -223,18 +223,20 @@ gs_energy = energies[:, :, 1, 0] - energies[:, :, 0, 0]
 Finally, we can visualize the low-energy spectrum of the interacting Kitaev chain.
 
 ```python
-fig, ax = plt.subplots(figsize=(6, 6))
+fig, ax = plt.subplots(figsize=(4, 4))
 im = ax.pcolormesh(
     U_values,
     mu_val,
     np.abs(gs_energy.T),
     shading="auto",
     cmap="viridis",
+    vmin=0,
+    vmax=2
 )
 
-ax.set_xlabel("Interaction Strength U")
-ax.set_ylabel("Chemical Potential μ")
-ax.set_title("Energy Gap between Ground and First Excited State")
+ax.set_xlabel(r"$U$")
+ax.set_ylabel(r"$\mu$")
+ax.set_title(r"E_{\text{gap}}$")
 cbar = plt.colorbar(im, ax=ax)
 cbar.set_label("Energy Gap")
 plt.show()
