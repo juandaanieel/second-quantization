@@ -236,7 +236,7 @@ im = ax.pcolormesh(
 
 ax.set_xlabel(r"$U$")
 ax.set_ylabel(r"$\mu$")
-ax.set_title(r"E_{\text{gap}}$")
+ax.set_title(r"$E_{\text{gap}}$")
 cbar = plt.colorbar(im, ax=ax)
 cbar.set_label("Energy Gap")
 plt.show()
