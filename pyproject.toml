@@ -75,7 +75,7 @@ ignore-words-list = "nwo,groth,braket,bra,ket"
 # ---------- Pixi (envs + tasks) ----------
 [tool.pixi.workspace]
 channels = ["https://prefix.dev/conda-forge"]
-platforms = ["osx-64", "linux-64"]
+platforms = ["osx-arm64", "linux-64"]
 
 # Shared dev tooling for the default env
 [tool.pixi.dependencies]
@@ -108,6 +108,7 @@ openfermion = ">=0.11, <0.12"
 [tool.pixi.feature.docs.pypi-dependencies]
 mkdocs-execute-plugin = ">=0.0.9,<0.0.10"
 quspin = ">=1.0.0,<2"
+second_quantization = { path = ".", editable = true }
 
 [tool.pixi.feature.docs.tasks]
 docs-serve = "mkdocs serve"
