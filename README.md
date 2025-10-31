@@ -69,7 +69,7 @@ Create efficient callable functions from symbolic Hamiltonians for parameter swe
 Decompose matrices back into symbolic fermionic operator expressions.
 
 ### `hilbert_space.basis_operators()`
-Generate matrix representations for fermionic creation/annihilation operators.
+Generate basis for fermionic Hilbert spaces.
 
 ## Requirements
 
