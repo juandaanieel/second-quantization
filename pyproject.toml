@@ -113,24 +113,29 @@ quspin = ">=1.0.0,<2"
 
 [tool.pixi.feature.docs.target.osx-arm64.pypi-dependencies]
 quspin = ">=1.0.0,<2"
-
-
 second_quantization = { path = ".", editable = true }
-
 
 
 [tool.pixi.feature.docs.tasks]
 docs-serve = "mkdocs serve"
 docs-build = "mkdocs build --site-dir public"
 
+[tool.pixi.feature.publish.dependencies]
+hatch = ">=1.7.0,<1.13"
+hatch-vcs = ">=0.4.0,<0.5"
+git = "*"
+
+[tool.pixi.feature.publish.tasks]
+build = "hatch build"
+publish = "hatch publish -u __token__"
+
 [tool.pixi.environments]
 default = { solve-group = "default" }
 docs    = { features = ["docs"], solve-group = "default" }
+publish = { features = ["publish"], solve-group = "default" }
 
 [tool.pixi.tasks]
 tests = {cmd = "pytest -v"}
 format = "ruff format ."
 lint = "ruff check ."
 pre-commit = "pre-commit"
-build = "hatch build"
-publish = "hatch publish -u __token__"
