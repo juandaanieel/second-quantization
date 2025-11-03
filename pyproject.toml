@@ -113,7 +113,6 @@ quspin = ">=1.0.0,<2"
 
 [tool.pixi.feature.docs.target.osx-arm64.pypi-dependencies]
 quspin = ">=1.0.0,<2"
-second_quantization = { path = ".", editable = true }
 
 
 [tool.pixi.feature.docs.tasks]
