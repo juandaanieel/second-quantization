@@ -70,7 +70,7 @@ exclude = ["tests", "docs", ".github", ".gitlab-ci.yml"]
 
 [tool.codespell]
 skip = "*.cls,*.bst,*.bib,*.lock"
-ignore-words-list = "nwo,groth,braket,bra,ket"
+ignore-words-list = "nwo,groth,braket,bra,ket,Araya,Day"
 
 # ---------- Pixi (envs + tasks) ----------
 [tool.pixi.workspace]
