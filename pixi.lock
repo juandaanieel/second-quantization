@@ -6640,8 +6640,8 @@ packages:
   timestamp: 1761692249943
 - pypi: ./
   name: second-quantization
-  version: 0.1.dev143+g84485b22a
-  sha256: 64fe42587e30dc15fd1b83c391e555cd795ef80352fd5a3e3c1ec87880d6940e
+  version: 0.1.dev145+g4d195460e
+  sha256: fc9506c800715076ae56b44b43d8f149ab77bd5ada97d2216bbacd3aed3f992e
   requires_dist:
   - numpy>=2.0
   - packaging>=22.0
