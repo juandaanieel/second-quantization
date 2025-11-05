@@ -24,13 +24,16 @@
 # SOFTWARE.
 
 from collections import defaultdict
+from typing import Union, Dict
 
 import numpy as np
 from scipy import sparse
 import sympy
 
 
-def PauliDecomposition(matrix, PauliStringInit=""):
+def PauliDecomposition(
+    matrix: Union[np.ndarray, sparse.spmatrix, sympy.Matrix], PauliStringInit: str = ""
+) -> Dict[str, Union[complex, float, sympy.Basic]]:
     """
     Computes the Pauli decomposition of a square matrix.
 
@@ -39,13 +42,11 @@ def PauliDecomposition(matrix, PauliStringInit=""):
     The Pauli strings are generated in each step.
 
     Args:
-            matrix: Matrix to be decomposed
-                            (Preferably numpy array/scipysparse).
-            sparse: Whether matrix is in sparse format.
-            PauliStringInit: For recursive computation.
+        matrix: Matrix to be decomposed (numpy array, scipy sparse matrix, or sympy Matrix).
+        PauliStringInit: For recursive computation. String representing the current Pauli string.
 
     Returns:
-            decomposition/outString: String of 1XYZ with their factors.
+        decomposition: Dictionary mapping Pauli strings to their coefficients.
     """
     # Dimension check
     if matrix.shape[0] != matrix.shape[1]:
@@ -82,7 +83,15 @@ def PauliDecomposition(matrix, PauliStringInit=""):
     return decomposition
 
 
-def is_zero(matrix):
+def is_zero(matrix: Union[np.ndarray, sparse.spmatrix, sympy.Matrix]) -> bool:
+    """Check if a matrix is zero.
+
+    Args:
+        matrix: Matrix to check (numpy array, scipy sparse matrix, or sympy Matrix).
+
+    Returns:
+        True if the matrix is zero, False otherwise.
+    """
     if isinstance(matrix, sympy.Matrix):
         return matrix.is_zero
     elif sparse.issparse(matrix):
