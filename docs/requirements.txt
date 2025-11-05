@@ -12,3 +12,4 @@ mkdocs-execute-plugin>=0.0.9
 numpy>=2.0
 sympy>=1.13
 scipy>=1.8
+matplotlib-base>=3.10,<4
