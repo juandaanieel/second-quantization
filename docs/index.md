@@ -5,9 +5,9 @@ It provides an intuitive symbolic interface (built on SymPy's `FermionOp`) for w
 
 Second Quantization is part of a set of complementary numerical libraries for quantum many-body physics such as:
 
-- `qrate` for transport calculations,
+- [`qrate`](https://gitlab.kwant-project.org/qt/qrate) for transport calculations,
 
-- `pmm-tools` for simulation of one dimensional fermionic chains.
+- [`pmm-tools`](https://gitlab.kwant-project.org/qt/pmm_tools) for simulation of one dimensional fermionic chains.
 
 ## Key features
 
@@ -20,3 +20,20 @@ Second Quantization is part of a set of complementary numerical libraries for qu
 1. Clarity: expressive symbolic syntax closely matches pen-and-paper notation.
 2. Reproducibility: parameterized, callable Hamiltonians enable reproducible sweeps and analyses.
 3. Extensibility: built to integrate with existing numerical tools (OpenFermion, QuSpin) and to be extended with bosonic degrees of freedom for hybrid systems.
+
+## Citation
+
+If you use `second_quantization` in your research, and you want to acknowledge it please cite:
+
+```bibtex
+@misc{secondquantization,
+  author       = {Second Quantization Developers},
+  title        = {Second Quantization},
+  howpublished = {\url{https://second-quantization.readthedocs.io/}},
+  year         = {2025},
+}
+```
+
+## Development
+
+If you want to contribute to the development of `second_quantization`, or you find any problem, please [open an issue](https://gitlab.kwant-project.org/qt/second_quantization/-/issues?sort=created_date&state=opened&first_page_size=100).
