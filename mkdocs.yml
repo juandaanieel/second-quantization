@@ -12,11 +12,6 @@ theme:
   palette:
     primary: black
   features:
-    - navigation.tabs
-    - navigation.sections
-    - navigation.expand
-    - navigation.top
-    - search.highlight
     - content.code.copy
 
 plugins:
