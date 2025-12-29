@@ -2,7 +2,11 @@
 
 The [QuTip python package](https://qutip.readthedocs.io/en/stable/) is a widely used package to simulate for example the time evolution of quantum systems. While QuTip offers options [to create quantum objects directly](https://qutip.readthedocs.io/en/stable/guide/guide-basics.html) the process can be tedious and hacky. `second_quantization` fills this gap by being able to translate between `sympy` objects and consistent matrix representations, the latter which can be readily wrapped as QuTip native `Qobj` objects.
 
-In this tutorial we will give an example of that in the form of the minimal braiding protocol as presented in [this recent paper](https://doi.org/10.48550/arXiv.2501.16056). Specifically we will calculate the time evolution of the expectation values of local fermionic parities and fidelity having built each using the tools from `second_quatization`.
+In this tutorial we will give an example of that in the form of the minimal braiding protocol as presented in [this recent paper](https://doi.org/10.48550/arXiv.2501.16056). Specifically we will calculate the time evolution of the expectation values of local fermionic parities and fidelity having built each using the tools from `second_quatization`. An illustration of the system and protocol is appended below
+
+![DeviceFigure](./figures/DeviceMkII.png)
+
+The system consists of two minimal Kitaev chains coupled via an electronic dot in the middle. At $\pi$ phase difference between the superconductors the system implements a virtual T-junction as illustrated in the centered schematic that shows the system in the Majorana basis representation. Once the system is tuned to a T-junction, we can proceed with braiding the Majoranas by ramping the chemical potential of the electronic dot, and the couplings between the dot and the chains.
 
 We will demonstrate how to:
 
