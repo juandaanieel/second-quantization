@@ -24,6 +24,9 @@ markdown_extensions:
       use_pygments: true
   - pymdownx.superfences
   - footnotes
+  - attr_list
+  - md_in_html
+  - pymdownx.blocks.caption
 
 extra_javascript:
   - javascript/katex.js
