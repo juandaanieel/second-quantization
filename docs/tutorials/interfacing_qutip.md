@@ -1,3 +1,7 @@
+---
+execute: true
+---
+
 # Interfacing QuTip
 
 The [QuTip python package](https://qutip.readthedocs.io/en/stable/) is a widely used package to simulate for example the time evolution of quantum systems. While QuTip offers options [to create quantum objects directly](https://qutip.readthedocs.io/en/stable/guide/guide-basics.html) the process can be tedious and hacky. `second_quantization` fills this gap by being able to translate between `sympy` objects and consistent matrix representations, the latter which can be readily wrapped as QuTip native `Qobj` objects.
