@@ -37,5 +37,6 @@ nav:
   - Home: index.md
   - Tutorials:
       - Interacting Kitaev Chain: tutorials/interacting_kitaev.md
+      - Interfacing QuTiP: tutorials/interfacing_qutip.md
   - Performance: performance.md
   - API Reference: API.md
