@@ -220,7 +220,7 @@ fig, ax = plt.subplots(figsize=(8, 3))
 ax.plot(t_vals/t_segment, mu_d, label=r'$\mu_M$', linewidth=2)
 ax.plot(t_vals/t_segment, t_lm, '--', label=r'$t_{LM}$', linewidth=2)
 ax.plot(t_vals/t_segment, t_mr, '-.', label=r'$t_{MR}$', linewidth=2)
-ax.legend(loc=7, alpha=0.3)
+ax.legend(loc=7, framealpha=0.3)
 ax.set_ylabel('Parameter value')
 ax.set_xlabel(r'$t/T$')
 ```
