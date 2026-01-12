@@ -38,7 +38,7 @@ We illustrate this on the minimal braiding protocol from [this paper](https://do
 3. Wrap matrices/states as QuTiP objects (`Qobj`, `QobjEvo`).
 4. Run the time evolution and interpret the plots (`sesolve`).
 
-## Braiding protocol (minimal Kitaev chains)
+## Braiding protocol
 
 The system consists of two minimal Kitaev chains coupled via a central quantum dot.
 
@@ -66,7 +66,7 @@ A full braid corresponds to twice this sequence.
 
 ## Setting up the Hamiltonian
 
-We start by defining the fermionic operators and symbolic parameters.
+First, we define the fermionic operators and parameters.
 
 ```python
 # set-up symbolic fermionic operators
@@ -120,8 +120,6 @@ H_MR = t_MR * Dagger(cM) * cR1 + t_MR * Dagger(cR1) * cM
 H_full = H_L + H_M + H_R + H_LM + H_MR
 ```
 
-For readability, we display each term:
-
 ```python
 display(sympy.Eq(sympy.Symbol("H_{L}"), H_L))
 display(sympy.Eq(sympy.Symbol("H_{R}"), H_R))
@@ -130,8 +128,7 @@ display(sympy.Eq(sympy.Symbol("H_{LM}"), H_LM))
 display(sympy.Eq(sympy.Symbol("H_{MR}"), H_MR))
 ```
 
-We then convert to matrices with `second_quantization`.
-We keep a static part $H_{TPMM}=H_L+H_R$ and treat the dot/couplings ($H_M, H_{LM}, H_{MR}$) as driven terms, matching QuTiP’s time-dependent Hamiltonian format.
+We convert to matrices with `second_quantization`, keeping the static part $H_{TPMM}=H_L+H_R$ and treating dot/coupling terms ($H_M, H_{LM}, H_{MR}$) as time-dependent, per QuTiP's format.
 
 To realize the virtual T-junction we impose a $\pi$ phase difference by choosing opposite pairing signs, $\Delta_L=-\Delta_R=E_{gap}/2$.
 
@@ -159,13 +156,12 @@ h_lm = hilbert_space.to_matrix(H_LM, operators=fermions, sparse=False)[t_LM]
 h_mr = hilbert_space.to_matrix(H_MR, operators=fermions, sparse=False)[t_MR]
 ```
 
-## Observables
+## Defining observables
 
-We track (i) local parities and (ii) fidelity with respect to chosen initial/final target states.
-In QuTiP these become `e_ops`, so expectations are recorded at every time.
+We track local parities and fidelity with target states as `e_ops` (operators whose expectations are recorded during evolution).
 
 ```python
-# parity observables
+# parity observables (track fermionic parity in left, middle, and right systems)
 P_L = 1j*(cL1 + Dagger(cL1))*(-1j)*(cL2 - Dagger(cL2))
 P_R = 1j*(-1j)*(cR1 - Dagger(cR1))*(cL2 + Dagger(cL2))
 P_M = 1 - 2 * Dagger(cM) * cM
@@ -176,14 +172,13 @@ p_m = hilbert_space.to_matrix(P_M, operators=fermions, sparse=False)[1]
 p_r = hilbert_space.to_matrix(P_R, operators=fermions, sparse=False)[1]
 ```
 
-To track the evolution of the system's state, we define the initial and final target states as kets and compute their corresponding density matrices.
-These states are:
+We define initial and final target states to track the braiding fidelity:
 
-- Initial state: $|\psi_{init}\rangle = \frac{1}{2}|E_+\rangle|0\rangle |E_-\rangle$
-- Final state: $|\psi_{final}\rangle = \frac{1}{2}|O_-\rangle|0\rangle |O_-\rangle$
+- Initial: $|\psi_{init}\rangle = \frac{1}{2}|E_+\rangle|0\rangle |E_-\rangle$ (even parity on left, even on right)
+- Final: $|\psi_{final}\rangle = \frac{1}{2}|O_-\rangle|0\rangle |O_-\rangle$ (odd parity on left, odd on right)
 
-Here $|E_{\pm}\rangle = \frac{1}{\sqrt{2}}(|0\rangle \pm |1,1\rangle)$ and $|O_{\pm}\rangle = \frac{1}{\sqrt{2}}(|1,0\rangle \pm |0,1\rangle)$ are the even and odd parity ground states of the left/right chains, respectively, and $|0\rangle$ is the empty state of the central dot.
-Ideally, a transformation from the initial to the final state corresponds to a full braid of the Majorana modes.
+where $|E_{\pm}\rangle$ and $|O_{\pm}\rangle$ are the even/odd ground states of the Kitaev chains, and $|0\rangle$ is empty on the dot.
+A successful braid takes the system from initial to final state.
 
 We write these states as:
 ```python
@@ -195,10 +190,9 @@ f_init = np.outer(init_state, init_state)
 f_final = np.outer(final_state, final_state)
 ```
 
-## Define time dependent parameter profiles
+## Defining time-dependent parameter profiles
 
-The protocol is implemented by smooth ramps of $\mu_M$, $t_{LM}$, and $t_{MR}$.
-We use the same “tanh” profiles as in [the paper](https://doi.org/10.48550/arXiv.2501.16056) to stay close to adiabatic evolution.
+The braiding protocol uses smooth tanh ramps of $\mu_M$, $t_{LM}$, and $t_{MR}$ to stay close to adiabatic evolution, matching [the paper](https://doi.org/10.48550/arXiv.2501.16056).
 
 
 ```python
@@ -251,20 +245,13 @@ init_obj = qutip.Qobj(init_state)
 obs_evo_obj = [qutip.Qobj(op) for op in [p_l, p_m, p_r, f_init, f_final]]
 ```
 
-The required objects are now ready:
-
-- `h_evo_obj` is the combined time-dependent Hamiltonian \(H(t)\).
-- `init_obj` is the initial state \(|\psi_{init}\rangle\).
-- `obs_evo_obj` contains the operators whose expectation values we want to record.
-
-We now perform the time evolution: 
+Now we run the time evolution with these objects: 
 
 ```python
 time_evolution = qutip.sesolve(h_evo_obj, init_obj, t_vals, e_ops=obs_evo_obj)
 ```
 
-`sesolve` returns expectation values in the same order as `e_ops`.
-Here that means parities first (`p_l`, `p_m`, `p_r`), then fidelities (`f_init`, `f_final`).
+`sesolve` records expectation values in the same order as `e_ops`: parities first, then fidelities.
 
 ```python
 fig, ax = plt.subplots(2,1, figsize=(8, 5))
