@@ -104,6 +104,8 @@ mkdocstrings-python = ">=1.18.2,<2"
 markdown = ">=3.6,<4"
 pymdown-extensions = ">=10.14.3,<11"
 openfermion = ">=0.11, <0.12"
+qutip = ">=5.2.2,<6"
+matplotlib = ">=3.10.8,<4"
 
 [tool.pixi.feature.docs.pypi-dependencies]
 mkdocs-execute-plugin = ">=0.0.9,<0.0.10"
