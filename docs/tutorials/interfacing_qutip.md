@@ -245,7 +245,7 @@ init_obj = qutip.Qobj(init_state)
 obs_evo_obj = [qutip.Qobj(op) for op in [p_l, p_m, p_r, f_init, f_final]]
 ```
 
-Now we run the time evolution with these objects: 
+Now we run the time evolution with these objects:
 
 ```python
 time_evolution = qutip.sesolve(h_evo_obj, init_obj, t_vals, e_ops=obs_evo_obj)
@@ -275,7 +275,6 @@ fig.show()
 ```
 
 How to read this figure:
-
 - **Parities (top):** track how local fermionic parity is redistributed during the ramps.
 - **Fidelities (bottom):** $\mathcal{F}[|\psi_{init}\rangle]$ drops as the state leaves the start, while $\mathcal{F}[|\psi_{fin}\rangle]$ rises if the protocol reaches the target.
 
