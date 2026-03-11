@@ -12,7 +12,7 @@ from quspin.operators import hamiltonian
 from second_quantization import hilbert_space
 
 import openfermion
-from openfermion.transforms import get_sparse_operator
+from openfermion.linalg import get_sparse_operator
 from openfermion.ops import FermionOperator
 
 
@@ -130,7 +130,7 @@ def quspin_sparse_hamiltonian(L):
 
 
 # %%
-max_n = 11
+max_n = 7
 
 sparse_times_quspin = []
 sparse_times_sq = []
@@ -208,5 +208,3 @@ axs[1].set_title("Basis Build Time")
 
 plt.tight_layout()
 plt.show()
-
-# %%
