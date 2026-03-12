@@ -70,9 +70,13 @@ class FermionSequenceBase:
     ) -> List[List[int]]:
         output_list = []
         for op in operators:
-            handler_func_name = self._parseinput_handlers.get(
-                type(op), "_handle_parse_default"
-            )
+            handler_func = self._handle_parse_default
+            for key in self._parseinput_handlers.keys():
+                if isinstance(op, key):
+                    handler_func_name = self._parseinput_handlers.get(
+                        key,
+                    )
+                    break
             handler_func = getattr(self, handler_func_name)
             output_list.append(handler_func(op))
         return output_list
@@ -85,8 +89,8 @@ class FermionSequenceBase:
     @staticmethod
     def _handle_parse_default(operators):
         raise TypeError(
-            f"Invalid input for operators: expected a sequence of Fermion operators, ints or tuples"
-            f"got {type(operators).__name__} instead."
+            f"Invalid input for operators: expected a sequence of Fermion operators, ints or tuples. "
+            f"Got {type(operators).__name__} instead."
         )
 
     @staticmethod
@@ -133,54 +137,6 @@ class FermionSequenceBase:
         """
         return ".".join(map(str, oper_list))
 
-    #######################################################
-    #####      GETTING AND SETTING SUBSEQUENCES       #####
-    #######################################################
-    """TODO: Fix the getitem handlers (need to be moved out of Base because of circular import issues otherwise)
-    _getitem_handlers = {
-        slice:'_get_slice',
-        #tuple:'_get_tuple',
-        np.ndarray:'_get_ndarray',
-        str: '_get_str',
-    }
-
-    def __contains__(self, subsequence):
-        return all(item in self.oper_list for item in subsequence.oper_list)
-
-    def __getitem__(self,indexing) -> "OperSequence":
-        #if isinstance(indexing, (sys.modules[__name__].FockStates,sys.modules[__name__].FockStatesSparse)):
-        #    if not hasattr(self,'basis_dict'):
-        #        return self.__and__(indexing)
-        #    if indexing not in self.basis_dict:
-        #        return self.__and__(indexing)
-        #    return self.basis_dict[indexing]
-
-        handler_func_name = self._getitem_handlers.get(type(indexing), '_handle_get_default')
-        handler_func = getattr(self,handler_func_name)
-        return handler_func(indexing)
-
-    def _handle_get_default(self,indexing: Any):
-        raise TypeError(f"Getting subsequence by {type(indexing).__name__} not supported")
-
-    def _get_slice(self,indexing: slice):
-        subsequence = OperSequence(deepcopy(self.oper_list)[indexing],weights = deepcopy(self.weights)[indexing], bypass_parse=True)
-        return subsequence
-
-    def _get_tuple(self,indexing: tuple):
-        new_list = deepcopy(self.oper_list)
-        subsequence = OperSequence([new_list[i] for i in indexing], weights = [self.weights[i] for i in indexing], bypass_parse=True)
-        return subsequence
-
-    def _get_ndarray(self,indexing: np.ndarray):
-        print("array slicing not yet supported")
-
-    #def _get_int(self,indexing: int):
-    #    subsequence = OperSequence([deepcopy(self.oper_list[indexing])], weights = [self.weights[indexing]], bypass_parse=True)
-    #    return subsequence
-
-    def _get_str(self,indexing: str):
-        print("string slicing not yet supported")
-    """
     _setitem_handlers = {
         slice: "_set_slice",
         tuple: "_set_tuple",

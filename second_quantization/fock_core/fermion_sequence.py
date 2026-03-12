@@ -4,10 +4,10 @@ from collections import Counter
 import numpy as np
 import sympy
 
-from typing import List, Self
+from typing import List, Self, Any
 
 from .base import FermionSequenceBase
-from .femion_data import FermionSequenceData
+from .fermion_data import FermionSequenceData
 from .Mixins.representation import RepresentationMixin
 from .Mixins.algebra import FermionAlgebraMixin
 
@@ -107,11 +107,15 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentationMi
         rows = np.concatenate(rows_list)
         cols = np.concatenate(cols_list)
         pars = np.concatenate(pars_list)
+
         ### Load values into right positions at once
         vals = np.empty(old_idx, dtype=np.complex128)
-        for w, type_str in zip(weights, type_strings):
-            sl = types_dict[type_str]
-            vals[sl] = w
+        if not isinstance(weights[0], sympy.Basic):
+            for w, type_str in zip(weights, type_strings):
+                sl = types_dict[type_str]
+                vals[sl] = w
+        else:
+            print("bypassing")
         return rows, cols, pars, types_dict, vals
 
     ######################################################
@@ -663,3 +667,67 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentationMi
         if not isinstance(oper_sequence, "FermionSequence"):
             return True
         return Counter(self._normalized()) != Counter(oper_sequence.normalized())
+
+    ###########################################
+    #####      GETTING SUBSEQUENCES       #####
+    ###########################################
+    _getitem_handlers = {
+        slice: "_get_slice",
+        tuple: "_get_tuple",
+        np.ndarray: "_get_ndarray",
+        str: "_get_str",
+        int: "_get_int",
+    }
+
+    def __contains__(self, subsequence):
+        return all(item in self.oper_list for item in subsequence.oper_list)
+
+    def __getitem__(self, indexing) -> "FermionSequence":
+        # if isinstance(indexing, (sys.modules[__name__].FockStates,sys.modules[__name__].FockStatesSparse)):
+        #    if not hasattr(self,'basis_dict'):
+        #        return self.__and__(indexing)
+        #    if indexing not in self.basis_dict:
+        #        return self.__and__(indexing)
+        #    return self.basis_dict[indexing]
+
+        handler_func_name = self._getitem_handlers.get(
+            type(indexing), "_handle_get_default"
+        )
+        handler_func = getattr(self, handler_func_name)
+        return handler_func(indexing)
+
+    def _handle_get_default(self, indexing: Any):
+        raise TypeError(
+            f"Getting subsequence by {type(indexing).__name__} not supported"
+        )
+
+    def _get_slice(self, indexing: slice):
+        subsequence = FermionSequence(
+            deepcopy(self.oper_list)[indexing],
+            weights=deepcopy(self.weights)[indexing],
+            bypass_parse=True,
+        )
+        return subsequence
+
+    def _get_tuple(self, indexing: tuple):
+        new_list = deepcopy(self.oper_list)
+        subsequence = FermionSequence(
+            [new_list[i] for i in indexing],
+            weights=[self.weights[i] for i in indexing],
+            bypass_parse=True,
+        )
+        return subsequence
+
+    def _get_ndarray(self, indexing: np.ndarray):
+        print("array slicing not yet supported")
+
+    def _get_int(self, indexing: int):
+        subsequence = FermionSequence(
+            [deepcopy(self.oper_list[indexing])],
+            weights=[self.weights[indexing]],
+            bypass_parse=True,
+        )
+        return subsequence
+
+    def _get_str(self, indexing: str):
+        print("string slicing not yet supported")

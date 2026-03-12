@@ -1,20 +1,33 @@
 from second_quantization.fock_core.fermion_sequence import FermionSequence
+from sympy.physics.quantum import Dagger
 
 __all__ = ["FermionSequence"]
 
 
-### TODO
-### Define convenience functions that act similar to hilbert_space for later compatibility
-def make_system():
-    return
+def to_sequence(H, operators):
+    H = H.expand()
 
+    oper_list = []
+    weights = []
 
-def to_matrix():
-    return
-
-
-def make_dict_callable():
-    return
+    for term in H.as_ordered_terms():
+        sublist = []
+        coeff = 1
+        for factor in term.as_ordered_factors():
+            if factor in operators:
+                sublist.append(1 + 2 * operators.index(factor))
+            elif Dagger(factor) in operators:
+                sublist.append(0 + 2 * operators.index(Dagger(factor)))
+            else:
+                coeff *= factor
+        sublist.reverse()
+        oper_list.append(sublist)
+        weights.append(coeff)
+    return FermionSequence(
+        oper_list,
+        weights=weights,
+        bypass_parse=True,
+    )
 
 
 I = FermionSequence(1)  # noqa: E741
