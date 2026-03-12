@@ -1,7 +1,7 @@
-import sys
-from typing import Callable, List, Any, Self
-import sympy 
+from typing import List
+import sympy
 import numpy as np
+
 
 def operator_verbose(type_str: str, position: int, spin: str):
     """
@@ -19,16 +19,18 @@ def operator_verbose(type_str: str, position: int, spin: str):
     oper = construct_operator(position, spin, annihilation)
     return oper
 
+
 def operator_from_string(type_str):
     """
     Method for constructing an operator from a string sequence, implementing
     the convention utilized by OpenFermion. Passes a
     correctly formatted call on to construct_operator()
     """
-    position = int(type_str[0])//2
-    spin = int(type_str[0]) &0B1
-    creation = 0 if type_str[-1] == '^' else 1
-    return construct_operator(position,spin, creation)
+    position = int(type_str[0]) // 2
+    spin = int(type_str[0]) & 0b1
+    creation = 0 if type_str[-1] == "^" else 1
+    return construct_operator(position, spin, creation)
+
 
 def construct_operator(position: int, spin: int, annihilation: bool = True):
     """
@@ -47,33 +49,39 @@ def construct_operator(position: int, spin: int, annihilation: bool = True):
     oper = shift + annihilation
     return oper
 
+
 class FermionSequenceBase:
     def __init__():
         return
-        
+
     ##################
     ## Parse Inputs ##
     ##################
     _parseinput_handlers = {
-        int: '_parse_int',
-        str: '_parse_str',
-        list: '_parse_list',
-        tuple: '_parse_tuple',
-        sympy.Basic: '_parse_sympy',
+        int: "_parse_int",
+        str: "_parse_str",
+        list: "_parse_list",
+        tuple: "_parse_tuple",
+        sympy.Basic: "_parse_sympy",
     }
-    def parse_operator_input(self,*operators:tuple[List[int],str,int,tuple]) -> List[List[int]]:
+
+    def parse_operator_input(
+        self, *operators: tuple[List[int], str, int, tuple]
+    ) -> List[List[int]]:
         output_list = []
         for op in operators:
-            handler_func_name = self._parseinput_handlers.get(type(op), '_handle_parse_default')
-            handler_func = getattr(self,handler_func_name)
+            handler_func_name = self._parseinput_handlers.get(
+                type(op), "_handle_parse_default"
+            )
+            handler_func = getattr(self, handler_func_name)
             output_list.append(handler_func(op))
         return output_list
 
     @staticmethod
-    def _parse_sympy(operators_sympy:sympy.Basic) -> List[List]:
+    def _parse_sympy(operators_sympy: sympy.Basic) -> List[List]:
         print("Not yet implemented")
-        return 
-        
+        return
+
     @staticmethod
     def _handle_parse_default(operators):
         raise TypeError(
@@ -84,10 +92,10 @@ class FermionSequenceBase:
     @staticmethod
     def _parse_int(operator_int: int) -> List[List]:
         return []
-    
+
     @staticmethod
     def _parse_str(operator_str: str) -> List[int]:
-        split_str = operator_str.split(',')
+        split_str = operator_str.split(",")
         parsed_str = [operator_from_string(s) for s in split_str]
         parsed_str.reverse()
         return parsed_str
@@ -96,19 +104,21 @@ class FermionSequenceBase:
     def _parse_list(operator_list: List[int]) -> List[int]:
         for item in operator_list:
             if isinstance(item, list):
-                raise TypeError('Nested lists can not be parsed as input type')
+                raise TypeError("Nested lists can not be parsed as input type")
         output = list(operator_list)
         output.reverse()
         return output
 
     @staticmethod
-    def _parse_tuple(operator_tuple: tuple[int,str]) -> List[int]:
+    def _parse_tuple(operator_tuple: tuple[int, str]) -> List[int]:
         if isinstance(operator_tuple[0], tuple):
             output = []
             for subop_tuple in operator_tuple:
                 for item in subop_tuple:
-                    if isinstance(item,tuple):
-                        raise TypeError('Not possible to parse a nested tuple with dimension > 2')
+                    if isinstance(item, tuple):
+                        raise TypeError(
+                            "Not possible to parse a nested tuple with dimension > 2"
+                        )
                 output.append(operator_verbose(*subop_tuple))
             output.reverse()
             return output
@@ -122,11 +132,11 @@ class FermionSequenceBase:
         to a string representation
         """
         return ".".join(map(str, oper_list))
-        
+
     #######################################################
     #####      GETTING AND SETTING SUBSEQUENCES       #####
     #######################################################
-    '''
+    """TODO: Fix the getitem handlers (need to be moved out of Base because of circular import issues otherwise)
     _getitem_handlers = {
         slice:'_get_slice',
         #tuple:'_get_tuple',
@@ -143,7 +153,7 @@ class FermionSequenceBase:
         #        return self.__and__(indexing)
         #    if indexing not in self.basis_dict:
         #        return self.__and__(indexing)
-        #    return self.basis_dict[indexing] 
+        #    return self.basis_dict[indexing]
 
         handler_func_name = self._getitem_handlers.get(type(indexing), '_handle_get_default')
         handler_func = getattr(self,handler_func_name)
@@ -151,16 +161,16 @@ class FermionSequenceBase:
 
     def _handle_get_default(self,indexing: Any):
         raise TypeError(f"Getting subsequence by {type(indexing).__name__} not supported")
-    
+
     def _get_slice(self,indexing: slice):
         subsequence = OperSequence(deepcopy(self.oper_list)[indexing],weights = deepcopy(self.weights)[indexing], bypass_parse=True)
         return subsequence
-        
+
     def _get_tuple(self,indexing: tuple):
         new_list = deepcopy(self.oper_list)
         subsequence = OperSequence([new_list[i] for i in indexing], weights = [self.weights[i] for i in indexing], bypass_parse=True)
         return subsequence
-    
+
     def _get_ndarray(self,indexing: np.ndarray):
         print("array slicing not yet supported")
 
@@ -170,45 +180,47 @@ class FermionSequenceBase:
 
     def _get_str(self,indexing: str):
         print("string slicing not yet supported")
-    '''
+    """
     _setitem_handlers = {
-        slice:'_set_slice',
-        tuple:'_set_tuple',
-        np.ndarray:'_set_ndarray',
-        int:'_set_int',
-        str:'_set_str',
+        slice: "_set_slice",
+        tuple: "_set_tuple",
+        np.ndarray: "_set_ndarray",
+        int: "_set_int",
+        str: "_set_str",
     }
 
-    def __setitem__(self, indexing, value: [int,float,complex]):
+    def __setitem__(self, indexing, value: [int, float, complex]):
         if isinstance(indexing, self.__class__):
-            old_val, str_list = self._set_opersequence(indexing,value)
+            old_val, str_list = self._set_opersequence(indexing, value)
         else:
-            handler_func_name = self._setitem_handlers.get(type(indexing), '_handle_set_default')
-            handler_func = getattr(self,handler_func_name)
-            old_val, str_list = handler_func(indexing,value)
-        if hasattr(self,'basis_dict'):
+            handler_func_name = self._setitem_handlers.get(
+                type(indexing), "_handle_set_default"
+            )
+            handler_func = getattr(self, handler_func_name)
+            old_val, str_list = handler_func(indexing, value)
+        if hasattr(self, "basis_dict"):
             for fock_basis, sparse_representation in self.basis_dict.items():
                 sparse_representation.update_values(str_list, old_val, value)
 
     def _handle_set_default(self, indexing, value):
         raise TypeError(f"Setting value by {type(indexing).__name__} not supported")
 
-    def _set_slice(self,indexing, value):
+    def _set_slice(self, indexing, value):
         print("Setting value by slice not yet supported")
 
-    def _set_tuple(self,indexing, value):
+    def _set_tuple(self, indexing, value):
         print("Setting value by tuple not yet supported")
 
-    def _set_ndarray(self,indexing, value):
+    def _set_ndarray(self, indexing, value):
         print("Setting value by numpy array not yet supported")
 
-    def _set_int(self,indexing, value):
+    def _set_int(self, indexing, value):
         print("Setting value by int not yet supported")
 
-    def _set_str(self,indexing, value):
+    def _set_str(self, indexing, value):
         print("Setting value by str not yet supported")
 
-    def _set_opersequence(self, indexing,value):
+    def _set_opersequence(self, indexing, value):
         old_value = self.weights[self.oper_list.index(indexing.oper_list[0])]
         str_list = []
         for i in range(len(indexing.oper_list)):
@@ -218,14 +230,14 @@ class FermionSequenceBase:
                 str_list.append(self.oper_list_to_str(check_item))
         return old_value, str_list
 
-    def __gt__(self, values: [int,float,complex,List,np.ndarray]):
-        if (
-            isinstance(values,(int,float,complex))
-        ):
+    def __gt__(self, values: [int, float, complex, List, np.ndarray]):
+        if isinstance(values, (int, float, complex)):
             self.weights = [values for i in range(len(self.oper_list))]
         else:
             if len(self.oper_list) != len(values):
-                raise ValueError(f"Length of input array ({len(values)}) does not match the number of subsequences ({len(self.oper_list)})")
+                raise ValueError(
+                    f"Length of input array ({len(values)}) does not match the number of subsequences ({len(self.oper_list)})"
+                )
             self.weights = values
         return self
 
@@ -254,13 +266,15 @@ class FermionSequenceBase:
         ## Check which states are alive
         states_alive_filt = ((states >> flip_bit_pos) & 1) != check_bit
         states_alive = states[states_alive_filt]
-        
+
         ## Calculate relative signs of the operator
-        signs = 1-2*(np.bitwise_count(states_alive & (flip_bit-1) ) & 0b1).astype(np.int8)
-        
+        signs = 1 - 2 * (np.bitwise_count(states_alive & (flip_bit - 1)) & 0b1).astype(
+            np.int8
+        )
+
         ## Return the filter for alive states, the new states and their signs
         return states_alive_filt, states_alive ^ flip_bit, signs
-   
+
     def act_oper_list(self, oper_list: List[int], states: np.ndarray):
         """
         Apply a sequence of operators to a list of states,
@@ -274,15 +288,14 @@ class FermionSequenceBase:
             signs: relative signs after applying the sequence of operators
         """
         new_states = states
-        for idx,oper in enumerate(oper_list):
+        for idx, oper in enumerate(oper_list):
             states_alive_filt, new_states, new_parity = self.act_oper(oper, new_states)
-            if idx==0:
+            if idx == 0:
                 signs = new_parity
             else:
-                signs = signs[states_alive_filt]*new_parity
+                signs = signs[states_alive_filt] * new_parity
             states = states[states_alive_filt]
         return states, new_states, signs
-
 
     def bra_oper_ket(self, states: list, phi: np.ndarray, operators: list):
         """
@@ -295,7 +308,6 @@ class FermionSequenceBase:
         """
         size = len(phi[:, 0])
         T_ij = np.zeros((size, size), dtype=complex)
-        zero_col = np.zeros(size, dtype=complex)
         trans_array = np.zeros((len(phi[0]), len(phi)), dtype="complex")
 
         for oper_list in operators:

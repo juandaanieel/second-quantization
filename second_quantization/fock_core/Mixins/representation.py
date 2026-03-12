@@ -1,6 +1,9 @@
-from typing import Callable, List, Any, Self
-import sympy 
+from typing import List
+import sympy
 import numpy as np
+from IPython.core.display import Markdown
+from IPython.display import display
+
 
 #### Store functionality for markdown printing of the FermionSequence class
 class RepresentationMixin:
@@ -11,10 +14,10 @@ class RepresentationMixin:
     ## Format Markdown ##
     #####################
     @staticmethod
-    def _format_weight_for_repr(w: complex) -> str :
+    def _format_weight_for_repr(w: complex) -> str:
         if isinstance(w, sympy.Basic):
-            return " $+$ "+f'({w._repr_latex_()})'
-        
+            return " $+$ " + f"({w._repr_latex_()})"
+
         w_str = ""
         ## w purely real
         if w.imag == 0 and w.real != 0:
@@ -67,10 +70,10 @@ class RepresentationMixin:
         else:
             return "$c_{" + f"{int(act_pos_proper)},{spin_vis}" + "}$"
 
-    def vis_oper_list(self, oper_list:List[List[int]], displ: bool=False):
+    def vis_oper_list(self, oper_list: List[List[int]], displ: bool = False):
         """
         Convert a sequence of operators to a readable string
-        """        
+        """
         if len(oper_list) == 0:
             return "$\\hat{I}$"
         full_str = ""
@@ -86,13 +89,12 @@ class RepresentationMixin:
         ## Return Zero symbol for empty operator
         if len(self.oper_list) == 0:
             return "$\\hat{0}$"
-        
+
         ## Otherwise build the string by iterating through the subsequences and weights
         for w, oper_seq in zip(self.weights, self.oper_list):
             operstr += self._format_weight_for_repr(w) + self.vis_oper_list(oper_seq)
-        
+
         ## Remove the first " $+$ " for formatting purposes
         if operstr[0:4] == " $+$":
             return operstr[4:]
         return operstr
-    
