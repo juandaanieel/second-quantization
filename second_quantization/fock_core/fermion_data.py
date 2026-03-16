@@ -31,11 +31,17 @@ class FermionSequenceData:
         self.type_dict = sparse_data[3]
         self.values = sparse_data[4]
 
-    def _repr_markdown_(self) -> str:
-        print("Rows: ", self.rows)
-        print("Cols: ", self.cols)
-        print("Vals: ", self.values)
-        return ""
+    def _repr_markdown_(self):
+        nnz = len(self.values)
+        dim = 4**self.N
+        dtype = np.asarray(self.values).dtype
+
+        md = []
+        md.append(
+            f"< FermionSequence sparse representation of type `{dtype}`  \n"
+            f"with {nnz} stored elements and shape {dim}x{dim}  >"
+        )
+        return "\n".join(md)
 
     '''TODO: reintegrate the matvec/matmul for LinearOperator compatibility
     def get_sparse_func(self) -> Callable:

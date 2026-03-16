@@ -1,5 +1,6 @@
 from second_quantization.fock_core.fermion_sequence import FermionSequence
 from sympy.physics.quantum import Dagger
+import sympy
 
 __all__ = ["FermionSequence"]
 
@@ -9,25 +10,34 @@ def to_sequence(H, operators):
 
     oper_list = []
     weights = []
+    sympy_dict = {}
 
     for term in H.as_ordered_terms():
         sublist = []
         coeff = 1
+        sympy_key = 1
         for factor in term.as_ordered_factors():
             if factor in operators:
                 sublist.append(1 + 2 * operators.index(factor))
             elif Dagger(factor) in operators:
                 sublist.append(0 + 2 * operators.index(Dagger(factor)))
+            elif isinstance(factor, sympy.Symbol):  ## Get symbolic pre-factor
+                coeff *= factor
+                sympy_key *= factor
             else:
                 coeff *= factor
+
         sublist.reverse()
         oper_list.append(sublist)
         weights.append(coeff)
-    return FermionSequence(
-        oper_list,
-        weights=weights,
-        bypass_parse=True,
-    )
+        if sympy_key not in sympy_dict.keys():
+            sympy_dict[sympy_key] = []
+        sympy_dict[sympy_key].append(FermionSequence.oper_list_to_str(sublist))
+
+    ferm_sequence = FermionSequence(oper_list, weights=weights, bypass_parse=True)
+    ferm_sequence._sympy_operators = operators
+    ferm_sequence._sympy_dict = sympy_dict
+    return ferm_sequence
 
 
 I = FermionSequence(1)  # noqa: E741

@@ -137,6 +137,9 @@ class FermionSequenceBase:
         """
         return ".".join(map(str, oper_list))
 
+    ###########################################
+    #####      SETTING SUBSEQUENCES       #####
+    ###########################################
     _setitem_handlers = {
         slice: "_set_slice",
         tuple: "_set_tuple",
@@ -144,6 +147,10 @@ class FermionSequenceBase:
         int: "_set_int",
         str: "_set_str",
     }
+
+    def __call__(self, **kwargs):
+        for key, arg in kwargs.items():
+            print(type(key), arg)
 
     def __setitem__(self, indexing, value: [int, float, complex]):
         if isinstance(indexing, self.__class__):

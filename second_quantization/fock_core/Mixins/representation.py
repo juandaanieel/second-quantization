@@ -85,6 +85,9 @@ class RepresentationMixin:
             return full_str
 
     def _repr_markdown_(self):
+        if hasattr(self, "_sympy_operators"):
+            return self.to_sympy()[0].simplify()._repr_latex_()
+
         operstr = ""
         ## Return Zero symbol for empty operator
         if len(self.oper_list) == 0:

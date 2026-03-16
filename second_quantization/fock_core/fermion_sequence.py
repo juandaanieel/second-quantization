@@ -3,6 +3,8 @@ from collections import Counter
 
 import numpy as np
 import sympy
+from sympy.physics.quantum import Dagger
+from sympy.physics.quantum.fermion import FermionOp
 
 from typing import List, Self, Any
 
@@ -58,6 +60,37 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentationMi
             weights if weights is not None else [1 for i in range(len(self.oper_list))]
         )
 
+    ##################################
+    #####      Conversions       #####
+    ##################################
+    def to_sympy(self):
+        """
+        TODO: Create new FermionOps for a quick to_sympy() conversion in case the sequence was not
+        created from a sympy expression from the start.
+        """
+        if not hasattr(self, "_sympy_operators"):
+            operators = []
+            max_n = max(max(sublist) for sublist in self.oper_list if len(sublist)) >> 1
+            spins = ["\\downarrow", "\\uparrow"]
+
+            for op in range(0, max_n + 1, 1):
+                site = op // 2
+                spin = op % 2
+
+                operators.append(FermionOp("c_{" + f"{site},{spins[spin]}" + "}"))
+        else:
+            operators = self._sympy_operators
+        H_sympy = 0
+        for weight, opers in zip(self.weights, self.oper_list):
+            term = weight
+            for op in reversed(opers):
+                idx = op // 2
+                term *= Dagger(operators[idx]) if op % 2 == 0 else operators[idx]
+
+            H_sympy += term
+
+        return H_sympy, operators
+
     ##########################################
     #####      CONSTRUCT DATA REPR       #####
     ##########################################
@@ -86,7 +119,6 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentationMi
         vals = []
 
         ## Unpack reference to array and weights (saves time inside the loop for larger systems)
-
         oper_list = self.oper_list
         weights = self.weights
         act_func = self.act_oper_list
@@ -114,8 +146,7 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentationMi
             for w, type_str in zip(weights, type_strings):
                 sl = types_dict[type_str]
                 vals[sl] = w
-        else:
-            print("bypassing")
+
         return rows, cols, pars, types_dict, vals
 
     ######################################################
@@ -408,6 +439,8 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentationMi
             for shift in shift_by:
                 shift_sequence += base_sequence >> int(shift)
             return shift_sequence
+
+    extend = __rshift__
 
     def __irshift__(self, shift_by) -> Self:
         """
