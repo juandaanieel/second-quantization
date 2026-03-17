@@ -7,33 +7,35 @@ from typing import List
 
 class FermionSequenceData:
     """
-    Stores data representing the action of an OperSequence instance on a specific
+    Stores data representing the action of a FermionSequence instance on a specific basis
     Maintains the minimal data in sparse format (rows, columns, values), with additional
-    information that allows for quickly updating values when weights of the OperSequence are adjusted.
+    information that allows for quickly updating values when weights of the FermionSequence are adjusted.
 
     Implements conversion to numpy arrays (.to_array()) or scipy coo_matrix format (.to_sparse_coo())
-
+    Args:
+        sparse_data (tuple): a 5-tuple containing the data in sparse format (rows, columns, values, parities, type_dict)
+        fock_space_size (int): the size of the fock space (N) for which the data was generated, used to determine the shape of the full matrix when converting to array format.
     Attrs:
-        fock_basis (FockStates): the FockStates instance for which the data was generated.
         rows (np.ndarray[int]): row indices of non-zero elements
         cols (np.ndarray[int]): column indices of non-zero elements
         values (np.ndarray[complex]): values of non-zero elements
-        parities (np.ndarray[int]): the sign under action of operators giving rise to a non-zero element
+        parities (np.ndarray[int]): the fermionic sign under action of operators for each element, used for updating values when weights of the FermionSequence are adjusted.
         type_dict (dict): dict encoding which operators gave rise to elements in rows/cols
-        data_array (Optional np.ndarray[complex]): full numpy array generated from rows,cols and values
+    Storage:
+        data_array (Optional np.ndarray[complex]): full numpy array generated from rows,cols and values, stored for quick access if generated. Updated when weights of the FermionSequence are adjusted.
     """
 
-    def __init__(self, sparse_data: np.ndarray, fock_state_size: int):
-        self.N = fock_state_size
+    def __init__(self, sparse_data: np.ndarray, fock_space: int):
+        self.N = fock_space.N
         self.rows = sparse_data[0]
         self.cols = sparse_data[1]
-        self.parities = sparse_data[2]
-        self.type_dict = sparse_data[3]
-        self.values = sparse_data[4]
+        self.values = sparse_data[2]
+        self.parities = sparse_data[3]
+        self.type_dict = sparse_data[4]
 
     def _repr_markdown_(self):
         nnz = len(self.values)
-        dim = 4**self.N
+        dim = 2**self.N
         dtype = np.asarray(self.values).dtype
 
         md = []
@@ -111,15 +113,14 @@ class FermionSequenceData:
         """
         if hasattr(self, "data_array"):
             return self.data_array
-        array_size = 4**self.N
+        array_size = 2**self.N
 
         arr = np.zeros((array_size, array_size), dtype=complex)
 
         filter_diagonal = self.rows != self.cols
         rows = np.concatenate((self.rows, self.cols[filter_diagonal]))
         cols = np.concatenate((self.cols, self.rows[filter_diagonal]))
-        new_values = self.values * self.parities
-        vals = np.concatenate((new_values, np.conj(new_values[filter_diagonal])))
+        vals = np.concatenate((self.values, np.conj(self.values[filter_diagonal])))
 
         np.add.at(arr, (rows, cols), vals)
         self.data_array = arr
@@ -131,13 +132,13 @@ class FermionSequenceData:
         Returns:
             coo_array: A sparse matrix in COO format.
         """
-        N = 4**self.N
+        N = 2**self.N
         filter_diagonal = np.where(self.rows != self.cols)
         rows = np.append(self.rows, self.cols[filter_diagonal])
         cols = np.append(self.cols, self.rows[filter_diagonal])
         vals = np.append(
-            self.values * self.parities,
-            np.conj(self.values[filter_diagonal]) * self.parities[filter_diagonal],
+            self.values,
+            np.conj(self.values[filter_diagonal]),
         )
         return coo_array((vals, (rows, cols)), shape=(N, N))
 
@@ -147,19 +148,22 @@ class FermionSequenceData:
         Returns:
             csr_array: A sparse matrix in CSR format.
         """
-        N = 4**self.N
+        N = 2**self.N
         filter_diagonal = np.where(self.rows != self.cols)
         rows = np.append(self.rows, self.cols[filter_diagonal])
         cols = np.append(self.cols, self.rows[filter_diagonal])
         vals = np.append(
-            self.values * self.parities,
-            np.conj(self.values[filter_diagonal]) * self.parities[filter_diagonal],
+            self.values,
+            np.conj(self.values[filter_diagonal]),
         )
         return csr_array((vals, (rows, cols)), shape=(N, N))
 
     def connected_components(self) -> List[List[int]]:
         """
-        Calculate the connected components of the FockStates represented by this OperSequenceData.
+        Get the connected components of the FockStates represented by the non-zero elements in the data. Connected components are groups of FockStates that are connected to each other through the action of the operators.
+        Allows to get a block diagonal form of the system by grouping together connected FockStates.
+        Returns:
+            List[List[int]]: A list of connected components, where each component is a list of indices of FockStates that are connected to each other through the action of the operators in the sequence.
         """
         idx = [[0]]
         components = [[self.rows[0], self.cols[0]]]

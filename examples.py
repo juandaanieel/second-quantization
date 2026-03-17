@@ -13,6 +13,7 @@ from sympy.physics.quantum import Dagger
 from second_quantization import fock_space
 from second_quantization.fock_space import c_down, c_up
 
+
 """
 Implementation via FermionSequence() is fully self-contained in terms of implementing fermionic algebra without sympy
 and can be used to create and update Hamiltonians by itself.
@@ -43,11 +44,13 @@ H
 """
 Updating values can be done in multiple ways. Most convenient is by setting the values via subsequences:
 """
-H[U] = 10
+# H[U] = 10
 H[ECT] = 2
 H[MU[0]] = 5
 H[MU[1]] = 20
 H
+
+H.to_sparse()
 
 """
 Weights can also be Sympy expressions, which will need to be given a value later.
@@ -61,7 +64,7 @@ H_symbolic_weights
 """
 Once Hamiltonian is set, to_sparse(N) creates a sparse representation of the Hamiltonian matrix, storing row/col/values and a dictionary for quickly updating values later.
 """
-sparse_data = H.to_sparse(N)
+sparse_data = H.to_sparse(2 * N)
 
 """
 From here one can convert to sparse arrays/numpy arrays
@@ -84,9 +87,10 @@ Alternatively to the above, fock_space.to_sequence() takes a sympy expression an
 the underlying FermionSequence() while maintaining the relation to the FermionOps.
 """
 
+t, U, mu = sp.symbols("t U mu", real=True)
+
 
 def build_spinful_chain_hamiltonian(n):
-    t, U, mu = sp.symbols("t U mu", real=True)
     ops_up = [FermionOp("c_{" + f"{i}" + "\\uparrow}") for i in range(n)]
     ops_dn = [FermionOp("c_{" + f"{i}" + "\\downarrow}") for i in range(n)]
     opers_sorted = []
@@ -131,10 +135,16 @@ H_seq = fock_space.to_sequence(H_sympy, fermops)
 H_seq  ## This H is now a FermionSequence()
 
 """
-.to_sparse() works in the same way, at first initializing an empty array of data
+.to_sparse() works in the same way, at first initializing an array of zeros
 (@TODO - see if empty array or array of 0's is best. In any case makes sense to clear the memory in advance)
 """
-sparse_data = H_seq.to_sparse(N)
+sparse_data = H_seq.to_sparse()
+sparse_data.values
+
+"""
+To fill the sparse array, call H_seq with a dictionary mapping the sympy symbols to values
+"""
+H_seq({U: 5, t: 10, mu: 7})
 sparse_data.values
 
 """

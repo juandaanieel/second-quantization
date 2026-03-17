@@ -51,9 +51,6 @@ def construct_operator(position: int, spin: int, annihilation: bool = True):
 
 
 class FermionSequenceBase:
-    def __init__():
-        return
-
     ##################
     ## Parse Inputs ##
     ##################
@@ -148,9 +145,28 @@ class FermionSequenceBase:
         str: "_set_str",
     }
 
-    def __call__(self, **kwargs):
-        for key, arg in kwargs.items():
-            print(type(key), arg)
+    def __call__(self, value_dict):
+        if not hasattr(self, "_sympy_dict"):
+            raise AttributeError(
+                "The FermionSequence object does not have the necessary attributes to set values by calling. Make sure the object was initialized from a sympy expression or that the _sympy_dict attribute is properly set."
+            )
+        if not hasattr(self, "basis_dict"):
+            raise AttributeError(
+                "No sparse representation has been initiated for this FermionSequence object. Make sure to initialize a sparse representation for the relevant basis before setting values by calling."
+            )
+        for sympy_key, new_value in value_dict.items():
+            if sympy_key not in self._sympy_dict.keys():
+                raise KeyError(
+                    f"SymPy key {sympy_key} not found in the FermionSequence's internal dictionary. Make sure to only set values for keys that are already present in the dictionary."
+                )
+            old_value = self._sympy_dict[sympy_key][0]
+            sympy_to_opers_str_list = self._sympy_dict[sympy_key][1]
+            self._sympy_dict[sympy_key] = (new_value, sympy_to_opers_str_list)
+            if hasattr(self, "basis_dict"):
+                for _, sparse_representation in self.basis_dict.items():
+                    sparse_representation.update_values(
+                        sympy_to_opers_str_list, old_value, new_value
+                    )
 
     def __setitem__(self, indexing, value: [int, float, complex]):
         if isinstance(indexing, self.__class__):
@@ -227,7 +243,7 @@ class FermionSequenceBase:
         flip_bit = 1 << flip_bit_pos
 
         ## Check which states are alive
-        states_alive_filt = ((states >> flip_bit_pos) & 1) != check_bit
+        states_alive_filt = ((states >> flip_bit_pos) & 1) == check_bit
         states_alive = states[states_alive_filt]
 
         ## Calculate relative signs of the operator

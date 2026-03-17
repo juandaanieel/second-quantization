@@ -5,10 +5,11 @@ from IPython.core.display import Markdown
 from IPython.display import display
 
 
-#### Store functionality for markdown printing of the FermionSequence class
-class RepresentationMixin:
-    def __init__(self):
-        return
+class RepresentFermionsMixin:
+    """
+    Class storing functionality for markdown printing of the FermionSequence class.
+    Relevant in case a FermionSequence was not created via sympy.
+    """
 
     #####################
     ## Format Markdown ##
@@ -101,3 +102,74 @@ class RepresentationMixin:
         if operstr[0:4] == " $+$":
             return operstr[4:]
         return operstr
+
+
+class RepresentFockBasisMixin:
+    def vis_state(self, state):
+        """
+        Show a 'state' in a readable fashion
+        args:
+            state (int): the Fock state to visualize
+            displ (bool): if True, prints the state
+                          if False, returns a string
+        """
+        n = state
+        if isinstance(n, np.ndarray):
+            if len(n) == 0:
+                return "0"
+            elif n[0] == -1:
+                return "0"
+        elif n < 0:
+            return "0"
+
+        state_str = "\u007c"
+        count = 0
+        while n:
+            check_up = n & 1
+            n >>= 1
+            check_down = n & 1
+            n >>= 1
+            if check_up and check_down:
+                state_str += "\u2193\u2191,"
+            elif check_up:
+                state_str += "\u2193,"
+            elif check_down:
+                state_str += "\u2191,"
+            else:
+                state_str += "0,"
+            count += 1
+
+        while count < self.N / 2:
+            state_str += "0,"
+            count += 1
+        state_str = state_str[:-1]
+        state_str += "\u3009"
+        return state_str
+
+    def vis_state_list(
+        self,
+        states,
+    ):
+        """
+        Visualise a superposition of Fock states
+        Args:
+            states (list): list of integers representign states
+            weights (floats): the weight of each state
+            displ (bool): if True prints the visualisation
+                          if False returns the string
+        """
+        state_str = ""
+        for state in states:
+            state_str += self.vis_state(state) + " "
+        return state_str
+
+    def _repr_markdown_(self) -> str:
+        info_string = f"Fock basis with {len(self.states)} states<br>"
+        if len(self.states) > 32:
+            return (
+                info_string
+                + self.vis_state_list(self.states[:5])
+                + "$\\cdots$ "
+                + self.vis_state_list(self.states[-5:])
+            )
+        return info_string + self.vis_state_list(self.states)

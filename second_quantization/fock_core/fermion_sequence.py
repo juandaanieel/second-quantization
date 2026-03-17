@@ -9,18 +9,35 @@ from sympy.physics.quantum.fermion import FermionOp
 from typing import List, Self, Any
 
 from .base import FermionSequenceBase
+from .fock_basis import FockBasis
 from .fermion_data import FermionSequenceData
-from .Mixins.representation import RepresentationMixin
+from .Mixins.representation import RepresentFermionsMixin
 from .Mixins.algebra import FermionAlgebraMixin
 
 
-class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentationMixin):
+class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentFermionsMixin):
     """
     Represents sequences of fermionic operators and handles common arithmetic operations.
-    Provides an interface to retrieve matrix or sparse representations of the sequence in a general fock basis.
+    Provides an interface to retrieve matrix or sparse representations of the sequence in any general fock basis.
     Args:
         oper_list (list[list[int]]): a nested list storing the integer representations of fermionic operators in a sequence
         weights (list[complex]): a list of values storing the weight of each subsequence of operators
+        bypass_parse (bool (default: False)): flag to indicate whether the input weights and oper_list should be stored directly if they are already in the correct format (used for internal functions to save time by avoiding parsing)
+
+    Attributes:
+        _sympy_operators (optional):
+            Internal representation of the operator sequence in SymPy form.
+            Only set when the object is initialized via SymPy-based constructors
+            or conversion utilities.
+        _sympy_dict (optional):
+            Internal dictionary mapping symbolic prefactors to their corresponding operator subsequences.
+
+    Notes:
+        The integer representation of operators is as follows:
+            - Even integers (0, 2, 4, ...) represent creation operators, where the integer divided by 2 gives the site index.
+            - Odd integers (1, 3, 5, ...) represent annihilation operators, where the integer minus 1 divided by 2 gives the site index.
+        Normal ordering assumes that creation operators should be ordered before annihilation operators, and within each type, operators are ordered by their site index.
+        By default, each site is assumed to have two spin states (up and down). The labelling of each fermion can be updated by the _sympy_operators attribute.
     """
 
     #####################################
@@ -34,9 +51,12 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentationMi
     ):
         """
         Initialise a sequence of operators with specified weights
-
+        Args:
+            *operators (tuple[List[int], str, int, tuple]): a variable length argument list of operators in the sequence, where each operator can be represented as a list of integers, a string, an integer, or a tuple
+            weights (List): a list of values storing the weight of each subsequence of operators. If not provided, all weights are set to 1 by default. Weights can be int, float, complex, or sympy expressions.
+            bypass_parse (bool): flag to indicate whether the input weights and oper_list should be stored directly if they are already in the correct format (used for internal functions to save time by avoiding parsing)
         """
-        ## For internally created FermionSequence objects, directly load data without parsing
+        ## For internally created FermionSequence objects, directly load data without parsing as format can be assumed to be correct
         if bypass_parse:
             self.oper_list = operators[0]
             self.weights = (
@@ -64,10 +84,14 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentationMi
     #####      Conversions       #####
     ##################################
     def to_sympy(self):
+        """Converts the FermionSequence to a SymPy expression of FermionOps.
+        If the FermionSequence was initialized from a SymPy expression, retrieves the original expression and operator list from the internal attributes.
+        Otherwise, creates FermionOps based on the integer representation of the operators in oper_list and constructs the corresponding SymPy expression.s
+        Returns:
+            H_sympy (Expr): The SymPy expression representing the fermionic Hamiltonian.
+            operators (List[FermionOp]): The list of SymPy fermionic operators.
         """
-        TODO: Create new FermionOps for a quick to_sympy() conversion in case the sequence was not
-        created from a sympy expression from the start.
-        """
+        ### Generate list of new FermionOps of not yet present
         if not hasattr(self, "_sympy_operators"):
             operators = []
             max_n = max(max(sublist) for sublist in self.oper_list if len(sublist)) >> 1
@@ -78,8 +102,11 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentationMi
                 spin = op % 2
 
                 operators.append(FermionOp("c_{" + f"{site},{spins[spin]}" + "}"))
+        ### Otherwise, retrieve the original operator list from the internal attribute
         else:
             operators = self._sympy_operators
+
+        ### Pass each operator sequence and weight to construct the full SymPy expression, using the original operator list to ensure correct labelling of operators
         H_sympy = 0
         for weight, opers in zip(self.weights, self.oper_list):
             term = weight
@@ -94,17 +121,36 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentationMi
     ##########################################
     #####      CONSTRUCT DATA REPR       #####
     ##########################################
-    def to_sparse(self, N: int):
+    def to_sparse(self, fock_space: [int, FockBasis] = None):
+        ## Create a dictionary for later reference
         if not hasattr(self, "basis_dict"):
             self.basis_dict = {}
-        fock_states = np.arange(4**N, dtype=np.int32)
-        sparse_data = self._construct_data_repr(fock_states)
-        self.basis_dict[N] = FermionSequenceData(sparse_data, N)
-        return self.basis_dict[N]
 
-    def _construct_data_repr(self, states):
+        ## If given an integer, generate a FockBasis object for later convenience
+        if isinstance(fock_space, int):
+            fock_space = FockBasis(fock_space)
+
+        ## If no fock_basis was given, infer the size of the fockspace from the Hamiltonian itself
+        if fock_space is None:
+            inferred_N = (
+                max(max(sublist) for sublist in self.oper_list if len(sublist)) >> 1
+            )
+            fock_space = FockBasis(inferred_N + 1)
+
+        ## If the sparse representation already exists: return the representation instance
+        if fock_space in self.basis_dict:
+            return self.basis_dict[fock_space]
+
+        ## Otherwise construct the sparse representation object and add it to the dictionary
+        sparse_data = self._construct_data_repr(fock_space)
+        self.basis_dict[fock_space] = FermionSequenceData(sparse_data, fock_space)
+        return self.basis_dict[fock_space]
+
+    def _construct_data_repr(self, fock_basis):
         """
-        Applies the stored hamiltonian to a set of Fock states
+        Applies the stored hamiltonian to a set of fock states.
+        FockStates are pre-wrapped in FockBasis for convenience, this allows constructing the Hamiltonian
+        also in a restricted subspace.
         Returns:
             rows (ndarray[int]): row indices of non-zero terms
             cols (ndarray[int]): column indices of non-zero terms
@@ -112,6 +158,7 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentationMi
             pars (ndarray[int]): relative signs of operators for the non-zero terms, for updating the array later
             type (dict): a dict pointing to where in the row/col memory the values related to a particular vector are stored
         """
+        ## Initialize data
         rows_list, cols_list, pars_list = [], [], []
         types_dict = {}
         old_idx = 0
@@ -122,8 +169,9 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentationMi
         oper_list = self.oper_list
         weights = self.weights
         act_func = self.act_oper_list
+        states = fock_basis.states
 
-        ## For ordered states no need to loop through
+        ## Loop over operators and type string, apply each operator list to set of states
         for h, type_str in zip(oper_list, type_strings):
             old_states, new_states, parities = act_func(
                 h,
@@ -138,16 +186,16 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentationMi
 
         rows = np.concatenate(rows_list)
         cols = np.concatenate(cols_list)
-        pars = np.concatenate(pars_list)
+        parities = np.concatenate(pars_list)
 
-        ### Load values into right positions at once
-        vals = np.empty(old_idx, dtype=np.complex128)
+        ### Load values into right positions if weights are not symbolic
+        vals = np.zeros(old_idx, dtype=np.complex128)
         if not isinstance(weights[0], sympy.Basic):
-            for w, type_str in zip(weights, type_strings):
-                sl = types_dict[type_str]
-                vals[sl] = w
+            for value, type_str in zip(weights, type_strings):
+                data_slice = types_dict[type_str]
+                vals[data_slice] = value * parities[data_slice]
 
-        return rows, cols, pars, types_dict, vals
+        return rows, cols, vals, parities, types_dict
 
     ######################################################
     #####             OPERATOR ARITHMETIC            #####

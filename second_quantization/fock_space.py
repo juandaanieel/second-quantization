@@ -21,7 +21,7 @@ def to_sequence(H, operators):
                 sublist.append(1 + 2 * operators.index(factor))
             elif Dagger(factor) in operators:
                 sublist.append(0 + 2 * operators.index(Dagger(factor)))
-            elif isinstance(factor, sympy.Symbol):  ## Get symbolic pre-factor
+            elif isinstance(factor, sympy.Symbol):
                 coeff *= factor
                 sympy_key *= factor
             else:
@@ -31,8 +31,8 @@ def to_sequence(H, operators):
         oper_list.append(sublist)
         weights.append(coeff)
         if sympy_key not in sympy_dict.keys():
-            sympy_dict[sympy_key] = []
-        sympy_dict[sympy_key].append(FermionSequence.oper_list_to_str(sublist))
+            sympy_dict[sympy_key] = (0, [])
+        sympy_dict[sympy_key][1].append(FermionSequence.oper_list_to_str(sublist))
 
     ferm_sequence = FermionSequence(oper_list, weights=weights, bypass_parse=True)
     ferm_sequence._sympy_operators = operators
