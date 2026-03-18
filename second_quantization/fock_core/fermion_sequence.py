@@ -1,4 +1,3 @@
-# codespell:ignore COO
 from copy import deepcopy
 from collections import Counter
 
@@ -85,7 +84,8 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentFermion
     #####      Conversions       #####
     ##################################
     def to_sympy(self):
-        """Converts the FermionSequence to a SymPy expression of FermionOps.
+        """
+        Converts FermionSequence to a SymPy expression of FermionOps.
         If the FermionSequence was initialized from a SymPy expression, retrieves the original expression and operator list from the internal attributes.
         Otherwise, creates Sympy FermionOp objects based on the FermionSequence default ordering of operators in oper_list and constructs the corresponding SymPy expression.s
         Returns:
@@ -148,22 +148,33 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentFermion
         return compiler_func(fock_basis)
 
     def _handle_compile_default(self, fock_basis: FockBasis):
-        raise NotImplementedError
+        allowed = ", ".join(sorted(self._compile_formats_dict.keys()))
+        raise ValueError(
+            f"Selected invalid data_format. " f"Implemented data formats are: {allowed}"
+        )
 
     def _compile_array(self, fock_basis: FockBasis):
-        raise NotImplementedError
-
-    def _compile_sparse_csr(self, fock_basis: FockBasis):
-        raise NotImplementedError
+        ## Construct the sparse representation object
+        sparse_data = FermionData(
+            fock_basis, self._construct_data_repr(fock_basis), data_backend="array"
+        )
+        ## Copy sympy identifiers for quick updating of sparse data representation
+        if hasattr(self, "_sympy_dict"):
+            sparse_data._sympy_dict = self._sympy_dict
+        return sparse_data
 
     def _compile_sparse_coo(self, fock_basis: FockBasis):
         ## Construct the sparse representation object
         sparse_data = FermionData(
             fock_basis, self._construct_data_repr(fock_basis), data_backend="coo"
         )
+        ## Copy sympy identifiers for quick updating of sparse data representation
         if hasattr(self, "_sympy_dict"):
-            sparse_data._sympy_dict = self._sympy_dict  ## Copy sympy identifiers for quick updating of sparse data representation
+            sparse_data._sympy_dict = self._sympy_dict
         return sparse_data
+
+    def _compile_sparse_csr(self, fock_basis: FockBasis):
+        raise NotImplementedError
 
     def _construct_data_repr(self, fock_basis):
         """

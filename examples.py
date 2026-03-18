@@ -8,7 +8,7 @@ from second_quantization.fock_space import c_down, c_up
 # %load_ext autoreload
 # %autoreload 2
 
-# # From Sympy to FermionSequence
+# # Sympy to FermionSequence
 
 
 """
@@ -85,13 +85,13 @@ sympy_expr  ## This is now a sympy expression
 
 # ## Compact example
 
-H_sympy, ops = build_spinful_chain_hamiltonian(n=9)  ## Built sympy array
+H_sympy, ops = build_spinful_chain_hamiltonian(n=3)  ## Built sympy array
 H = fock_space.to_sequence(H_sympy, ops)  ## Map Sympy to FermionSequence
 H_data = H.compile(
     data_format="coo"
 )  ## Compile in default fock basis, returning COO format
-H_data({t: 1.0, U: 2.5, mu: 3})  ## Set parametrized values
-H_data.get()  ## Get sparse array
+H_data({t: 5.0, U: 2.5, mu: 3})  ## Set parametrized values
+H_data.get()  ## Get data
 
 # # Example usage of FermionSequence()
 
