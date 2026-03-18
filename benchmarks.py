@@ -9,7 +9,8 @@ import matplotlib.pyplot as plt
 from quspin.basis import spinful_fermion_basis_1d
 from quspin.operators import hamiltonian
 
-from second_quantization import hilbert_space
+from second_quantization import fock_space
+from second_quantization.fock_core.fock_basis import FockBasis
 
 import openfermion
 from openfermion.linalg import get_sparse_operator
@@ -38,8 +39,8 @@ def build_spinful_chain_hamiltonian(n):
     There are 2*n fermionic modes: c_{i,up}, c_{i,down} for i in 0..n-1.
     """
     t, U, mu = sympy.symbols("t U mu", real=True)
-    ops_up = [FermionOp(f"c_{i}_up") for i in range(n)]
-    ops_dn = [FermionOp(f"c_{i}_dn") for i in range(n)]
+    ops_up = [FermionOp("c_{" + f"{i}" + "\\uparrow}") for i in range(n)]
+    ops_dn = [FermionOp("c_{" + f"{i}" + "\\downarrow}") for i in range(n)]
     hopping = 0
     interaction = 0
     chemical = 0
@@ -107,9 +108,9 @@ def quspin_sparse_hamiltonian(L):
     U = 2.0  # Onsite interaction strength
     mu = 0.5  # Chemical potential
 
-    start = time.time()
+    start = time.perf_counter()
     basis = spinful_fermion_basis_1d(L=L)
-    time_basis = time.time() - start
+    time_basis = time.perf_counter() - start
 
     # Only define one direction for hopping; QuSpin adds the Hermitian conjugate
     hop_right = [[-J, i, (i + 1) % L] for i in range(L)]  # hopping to the right PBC
@@ -130,7 +131,7 @@ def quspin_sparse_hamiltonian(L):
 
 
 # %%
-max_n = 7
+max_n = 8
 
 sparse_times_quspin = []
 sparse_times_sq = []
@@ -145,35 +146,36 @@ ns = list(range(2, max_n + 1))
 for i, n in enumerate(ns):
     # Second quantization
     H, ops = build_spinful_chain_hamiltonian(n)
+    operator_seq = fock_space.to_sequence(H, ops)
 
-    start_basis_sq = time.time()
-    operator_dict = hilbert_space.basis_operators(ops, sparse=True)
-    basis_times_sq.append(time.time() - start_basis_sq)
+    start_basis_sq = time.perf_counter()
+    FockBasis(2 * ns)
+    basis_times_sq.append(time.perf_counter() - start_basis_sq)
 
-    start_1 = time.time()
-    hilbert_space.to_matrix(H, operators=ops, sparse=True, operator_dict=operator_dict)
-    sparse_times_sq.append(time.time() - start_1)
+    start_1 = time.perf_counter()
+    operator_seq.compile(data_format="coo")
+    sparse_times_sq.append(time.perf_counter() - start_1)
 
     # QuSpin
     static, basis, time_basis_qspin = quspin_sparse_hamiltonian(n)
     basis_times_quspin.append(time_basis_qspin)
 
-    start_2 = time.time()
+    start_2 = time.perf_counter()
     H_quspin = hamiltonian(static, [], basis=basis, dtype=np.float64)
     H_sparse = H_quspin.as_sparse_format().static
-    sparse_times_quspin.append(time.time() - start_2)
+    sparse_times_quspin.append(time.perf_counter() - start_2)
 
     # OpenFermion
     # Same result as
     # H = openfermion.fermi_hubbard(n, 1, 1, 1, periodic=False)
     # H_sparse = get_sparse_operator(H)
-    start_of = time.time()
+    start_of = time.perf_counter()
     H = build_spinful_chain_hamiltonian_openfermion(n)
-    hamiltonian_times_of.append(time.time() - start_of)
+    hamiltonian_times_of.append(time.perf_counter() - start_of)
     H_JW = openfermion.jordan_wigner(H)
-    sparse_time_of = time.time()
+    sparse_time_of = time.perf_counter()
     H_sparse_openfermion = get_sparse_operator(H_JW)
-    sparse_times_of.append(time.time() - sparse_time_of)
+    sparse_times_of.append(time.perf_counter() - sparse_time_of)
 
     print(
         f"n={n}: QUSPIN={sparse_times_quspin[-1]:.3f}s, SQ={sparse_times_sq[-1]:.3f}s, OF={sparse_times_of[-1]:.3f}s"
@@ -186,7 +188,7 @@ fig, axs = plt.subplots(1, 2, figsize=(8, 3))
 ns = list(range(2, max_n + 1))
 ns = 2 * np.array(ns)
 # Panel 1: Matrix build times
-axs[0].plot(ns, sparse_times_sq, "o-", label="SQ (to_matrix)")
+axs[0].plot(ns, sparse_times_sq, "o-", label="SQ (compile())")
 axs[0].plot(ns, sparse_times_quspin, "o-", label="QuSpin")
 axs[0].plot(ns, sparse_times_of, "o-", label="OpenFermion")
 axs[0].set_yscale("log")
@@ -199,12 +201,12 @@ axs[0].legend(frameon=False)
 # Panel 2: Basis build times
 axs[1].plot(ns, basis_times_sq, "o-", label="SQ")
 axs[1].plot(ns, basis_times_quspin, "o-", label="QuSpin")
-# axs[1].plot(ns, hamiltonian_times_of, 'o-', label='OpenFermion')
+axs[1].plot(ns, hamiltonian_times_of, "o-", label="OpenFermion")
 axs[1].set_yscale("log")
 # axs[1].loglog()
 axs[1].set_xlabel("Number of fermions")
 axs[1].set_ylabel("Time (s)")
 axs[1].set_title("Basis Build Time")
-
+axs[1].legend(frameon=False)
 plt.tight_layout()
 plt.show()

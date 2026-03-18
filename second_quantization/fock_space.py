@@ -37,6 +37,7 @@ def to_sequence(H, operators):
     ferm_sequence = FermionSequence(oper_list, weights=weights, bypass_parse=True)
     ferm_sequence._sympy_operators = operators
     ferm_sequence._sympy_dict = sympy_dict
+
     return ferm_sequence
 
 

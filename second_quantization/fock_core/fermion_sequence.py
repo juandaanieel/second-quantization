@@ -1,3 +1,4 @@
+# codespell:ignore COO
 from copy import deepcopy
 from collections import Counter
 
@@ -10,7 +11,7 @@ from typing import List, Self, Any
 
 from .base import FermionSequenceBase
 from .fock_basis import FockBasis
-from .fermion_data import FermionSequenceData
+from .fermion_data import FermionData
 from .Mixins.representation import RepresentFermionsMixin
 from .Mixins.algebra import FermionAlgebraMixin
 
@@ -20,15 +21,15 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentFermion
     Represents sequences of fermionic operators and handles common arithmetic operations.
     Provides an interface to retrieve matrix or sparse representations of the sequence in any general fock basis.
     Args:
-        oper_list (list[list[int]]): a nested list storing the integer representations of fermionic operators in a sequence
-        weights (list[complex]): a list of values storing the weight of each subsequence of operators
-        bypass_parse (bool (default: False)): flag to indicate whether the input weights and oper_list should be stored directly if they are already in the correct format (used for internal functions to save time by avoiding parsing)
+        oper_list (list[list[int]]): a nested list storing the integer representations of fermionic operators in a sequence.
+        weights (list[complex]): a list of values storing the weight of each subsequence of operators.
+        bypass_parse (bool (default: False)): flag to indicate whether the input weights and oper_list should be stored directly if they are already in the correct format (used for internal functions to save time by avoiding parsing).
 
     Attributes:
         _sympy_operators (optional):
             Internal representation of the operator sequence in SymPy form.
             Only set when the object is initialized via SymPy-based constructors
-            or conversion utilities.
+            or conversion function.
         _sympy_dict (optional):
             Internal dictionary mapping symbolic prefactors to their corresponding operator subsequences.
 
@@ -37,7 +38,7 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentFermion
             - Even integers (0, 2, 4, ...) represent creation operators, where the integer divided by 2 gives the site index.
             - Odd integers (1, 3, 5, ...) represent annihilation operators, where the integer minus 1 divided by 2 gives the site index.
         Normal ordering assumes that creation operators should be ordered before annihilation operators, and within each type, operators are ordered by their site index.
-        By default, each site is assumed to have two spin states (up and down). The labelling of each fermion can be updated by the _sympy_operators attribute.
+        By default, each site is assumed to have two spin states (up and down). The labelling of each fermion can be updated by the _sympy_operators attribute or .set_ordering() (@todo).
     """
 
     #####################################
@@ -50,7 +51,7 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentFermion
         bypass_parse: bool = False,
     ):
         """
-        Initialise a sequence of operators with specified weights
+        Initialise a sequence of operators with specified weights.
         Args:
             *operators (tuple[List[int], str, int, tuple]): a variable length argument list of operators in the sequence, where each operator can be represented as a list of integers, a string, an integer, or a tuple
             weights (List): a list of values storing the weight of each subsequence of operators. If not provided, all weights are set to 1 by default. Weights can be int, float, complex, or sympy expressions.
@@ -77,7 +78,7 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentFermion
                 )
 
         self.weights = (
-            weights if weights is not None else [1 for i in range(len(self.oper_list))]
+            weights if weights is not None else [1 for _ in range(len(self.oper_list))]
         )
 
     ##################################
@@ -86,7 +87,7 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentFermion
     def to_sympy(self):
         """Converts the FermionSequence to a SymPy expression of FermionOps.
         If the FermionSequence was initialized from a SymPy expression, retrieves the original expression and operator list from the internal attributes.
-        Otherwise, creates FermionOps based on the integer representation of the operators in oper_list and constructs the corresponding SymPy expression.s
+        Otherwise, creates Sympy FermionOp objects based on the FermionSequence default ordering of operators in oper_list and constructs the corresponding SymPy expression.s
         Returns:
             H_sympy (Expr): The SymPy expression representing the fermionic Hamiltonian.
             operators (List[FermionOp]): The list of SymPy fermionic operators.
@@ -118,33 +119,51 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentFermion
 
         return H_sympy, operators
 
-    ##########################################
-    #####      CONSTRUCT DATA REPR       #####
-    ##########################################
-    def to_sparse(self, fock_space: [int, FockBasis] = None):
-        ## Create a dictionary for later reference
-        if not hasattr(self, "basis_dict"):
-            self.basis_dict = {}
+    ####################################################
+    #####      CONSTRUCT DATA REPRESENTATION       #####
+    ####################################################
+    _compile_formats_dict = {
+        "coo": "_compile_sparse_coo",
+        "csr": "_compile_sparse_csr",
+        "array": "_compile_array",
+    }
 
+    def compile(self, fock_basis: [int, FockBasis] = None, data_format="coo"):
         ## If given an integer, generate a FockBasis object for later convenience
-        if isinstance(fock_space, int):
-            fock_space = FockBasis(fock_space)
+        if isinstance(fock_basis, int):
+            fock_basis = FockBasis(fock_basis)
 
-        ## If no fock_basis was given, infer the size of the fockspace from the Hamiltonian itself
-        if fock_space is None:
+        ## If no specific FockBasis was given, infer the size of the fockspace from the Hamiltonian itself
+        elif fock_basis is None:
             inferred_N = (
                 max(max(sublist) for sublist in self.oper_list if len(sublist)) >> 1
-            )
-            fock_space = FockBasis(inferred_N + 1)
+            ) + 1
+            fock_basis = FockBasis(inferred_N)
 
-        ## If the sparse representation already exists: return the representation instance
-        if fock_space in self.basis_dict:
-            return self.basis_dict[fock_space]
+        ## Get function for compiling correct data format
+        compiler_func_name = self._compile_formats_dict.get(
+            data_format, "_handle_compile_default"
+        )
+        compiler_func = getattr(self, compiler_func_name)
+        return compiler_func(fock_basis)
 
-        ## Otherwise construct the sparse representation object and add it to the dictionary
-        sparse_data = self._construct_data_repr(fock_space)
-        self.basis_dict[fock_space] = FermionSequenceData(sparse_data, fock_space)
-        return self.basis_dict[fock_space]
+    def _handle_compile_default(self, fock_basis: FockBasis):
+        raise NotImplementedError
+
+    def _compile_array(self, fock_basis: FockBasis):
+        raise NotImplementedError
+
+    def _compile_sparse_csr(self, fock_basis: FockBasis):
+        raise NotImplementedError
+
+    def _compile_sparse_coo(self, fock_basis: FockBasis):
+        ## Construct the sparse representation object
+        sparse_data = FermionData(
+            fock_basis, self._construct_data_repr(fock_basis), data_backend="coo"
+        )
+        if hasattr(self, "_sympy_dict"):
+            sparse_data._sympy_dict = self._sympy_dict  ## Copy sympy identifiers for quick updating of sparse data representation
+        return sparse_data
 
     def _construct_data_repr(self, fock_basis):
         """
@@ -326,10 +345,7 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentFermion
         product = FermionSequence(
             product_outcome[1], weights=product_outcome[0], bypass_parse=True
         )
-        product.normal_order()
-        product.remove_duplicates()
-        product.merge_terms()
-        product.remove_zero_weight()
+        product.clean()
         return product
 
     def __rmul__(self, multiplier) -> "FermionSequence":
@@ -359,11 +375,18 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentFermion
         )
         self.oper_list = product_outcome[1]
         self.weights = product_outcome[0]
-        self.normal_order()
-        self.merge_terms()
-        self.remove_duplicates()
-        self.remove_zero_weight()
+        self.clean()
         return self
+
+    def commute(self, operator_2):
+        commutator = self * operator_2 - operator_2 * self
+        commutator.remove_zero_weight()
+        return commutator
+
+    def anticommute(self, operator_2):
+        anticommutator = self * operator_2 + operator_2 * self
+        anticommutator.remove_zero_weight()
+        return anticommutator
 
     def __truediv__(self, divisor: [int, float]) -> "FermionSequence":
         """
@@ -392,7 +415,11 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentFermion
 
     @staticmethod
     def _multiplication_basis(weights_1, oper_list_1, weights_2, oper_list_2):
-        ### PYTHON VERSION
+        """
+        Basis for multiplying two FermionSequences.
+        Loops through the nested operator lists and concatenates their sublists.
+        Cleaning of the expression (i.e. normal ordering) is required after this process.
+        """
         oper_products = []
         product_weights = []
         for idx_1, oper_seq_1 in enumerate(oper_list_1):
@@ -422,7 +449,7 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentFermion
         """
         ~ operator
         Returns a new FermionSequence representing the complex conjugate of the original sequence
-        Does not normal order the new sequence before returning.
+        Note: Does not normal order the new sequence before returning.
         """
         invert_list = []
         flip_bit = 0b1
@@ -451,8 +478,7 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentFermion
         )
         return inverse
 
-    _eval_adjoint = __invert__
-    dag = __invert__
+    dag = __invert__  ## Alias for complex conjugation
 
     def __rshift__(self, shift_by: int) -> "FermionSequence":
         """
@@ -552,45 +578,25 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentFermion
     ###########################################################
     #####     ORDERING AND CLEANING OPERATOR SEQUENCE     #####
     ###########################################################
+    def simplify(self) -> None:
+        """
+        Calls .expand() then .simplify() on all Sympy expressions in self.weights.
 
-    def sort(self) -> None:
-        store_ints = []
-        for idx in range(len(self.weights) - 1, -1, -1):
-            if not isinstance(self.oper_list[idx], list):
-                store_ints.append((self.weights[idx], self.oper_list[idx]))
-                self.oper_list.pop(idx)
-                self.weights.pop(idx)
+            Returns: None (FermionSequence is modified in-place)
+        """
+        for idx, weight in enumerate(self.weights):
+            if isinstance(weight, sympy.Basic):
+                self.weights[idx] = sympy.simplify(sympy.expand(weight))
+        self.remove_zero_weight()
 
-        nested = deepcopy(self.oper_list)
-        weights = deepcopy(self.weights)
+    def remove_zero_weight(self) -> None:
+        """
+        Removes any terms in oper_list that have zero weight.
+        Numerical terms are removed rounded to 13 digits.
+        Symbolic terms rely on Sympy's == 0 check.
 
-        max_len = max(len(lst) for lst in nested)
-        padded_nested = [([-1] * (max_len - len(lst)) + lst) for lst in nested]
-
-        # Zip and sort by reversed sublist (i.e., last digit first)
-        combined = list(zip(padded_nested, nested, weights))
-        sorted_combined = sorted(combined, key=lambda x: x[0][::-1])
-
-        # Extract the results
-        sorted_nested = [x[1] for x in sorted_combined]
-        sorted_weights = [x[2] for x in sorted_combined]
-
-        final_sorted = sorted(
-            zip(sorted_nested, sorted_weights), key=lambda x: len(x[0])
-        )
-        final_nested = [x[0] for x in final_sorted]
-        final_weights = [x[1] for x in final_sorted]
-
-        if len(store_ints) > 0:
-            self.weights = [i[0] for i in store_ints]
-            self.oper_list = [i[1] for i in store_ints]
-            self.weights.extend(final_weights)
-            self.oper_list.extend(final_nested)
-        else:
-            self.weights = final_weights
-            self.oper_list = final_nested
-
-    def remove_zero_weight(self) -> "FermionSequence":
+            Returns: None (FermionSequence is modified in-place)
+        """
         for idx in range(len(self.weights) - 1, -1, -1):
             if isinstance(self.weights[idx], (int, float, complex)):
                 if abs(np.round(self.weights[idx], 13)) == 0.0:
@@ -600,18 +606,25 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentFermion
                 if self.weights[idx] == 0:
                     self.weights.pop(idx)
                     self.oper_list.pop(idx)
-        return self
 
-    ## Remove duplicate operators
     def remove_duplicates(self) -> None:
-        ### PYTHON VERSION
+        """
+        Removes any operator subsequence in oper_list with duplicate operators.
+        This enforces Pauli exclusion -> c_i^2 = 0.
+
+            Returns: None (FermionSequence is modified in-place)
+        """
         for idx in range(len(self.weights) - 1, -1, -1):
             if len(self.oper_list[idx]) != len(set(self.oper_list[idx])):
                 self.oper_list.pop(idx)
                 self.weights.pop(idx)
 
-    ## Merge identical terms
     def merge_terms(self) -> None:
+        """
+        Merges any identical subsequences, adding their weights.
+
+            Returns: None (FermionSequence is modified in-place)
+        """
         merged_weight, merged_list = [], []
 
         for seq, weight in zip(self.oper_list, self.weights):
@@ -627,7 +640,8 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentFermion
         """
         Places the operators in normal order while accounting for minus signs due to swapping of operators
         and removal of duplicate creation/annihilation operators.
-            Return None (modifies FermionSequence in place)
+
+            Returns: None (FermionSequence is modified in-place)
         """
         is_normal_ordered = False
         while not is_normal_ordered:
@@ -676,8 +690,54 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentFermion
                     ## If no swap took place, list is sorted
                     if not flag_swap:
                         break
-        return self
 
+    def clean(self):
+        """
+        Shortcut for cleaning an operator sequence in the correct order.
+        Not following this order will lead to wrong results (e.g. by calling remove_duplicates() before normal_order()).
+        @TODO: make an external entry point for the below functions that does some checks so that a user can not make this mistake?
+                e.g. by calling is_normal_ordered() before calling remove_duplicates(), while skipping those checks internally.
+
+            Returns: None (FermionSequence is modified in-place)
+        """
+        self.normal_order()
+        self.merge_terms()
+        self.remove_duplicates()
+        self.remove_zero_weight()
+
+    def sort(self) -> None:
+        """
+        Method for placing an operator sequence in a specific (hand-picked) order.
+        Subsequences are ordered by site-index of their rightmost operator (= first operator in the list)
+
+            Returns: None (FermionSequence is modified in-place)
+        """
+        nested = deepcopy(self.oper_list)
+        weights = deepcopy(self.weights)
+
+        max_len = max(len(lst) for lst in nested)
+        padded_nested = [([-1] * (max_len - len(lst)) + lst) for lst in nested]
+
+        # Zip and sort by reversed sublist (i.e., last digit first)
+        combined = list(zip(padded_nested, nested, weights))
+        sorted_combined = sorted(combined, key=lambda x: x[0][::-1])
+
+        # Extract the results
+        sorted_nested = [x[1] for x in sorted_combined]
+        sorted_weights = [x[2] for x in sorted_combined]
+
+        final_sorted = sorted(
+            zip(sorted_nested, sorted_weights), key=lambda x: len(x[0])
+        )
+        final_nested = [x[0] for x in final_sorted]
+        final_weights = [x[1] for x in final_sorted]
+
+        self.weights = final_weights
+        self.oper_list = final_nested
+
+    #####################################
+    #####    Boolean Properties     #####
+    #####################################
     def is_normal_ordered(self):
         """
         Checks if the operator sequence is in normal order
@@ -694,24 +754,13 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentFermion
         return True
 
     def is_hermitian(self):
+        """
+        Checks if the operator sequence is Hermitian.
+        Returns True if the sequence is Hermitian, False otherwise.
+        """
         conj = ~self
         conj.normal_order()
         return conj == self
-
-    def commute(self, operator_2):
-        commutator = self * operator_2 - operator_2 * self
-        commutator.remove_zero_weight()
-        return commutator
-
-    def anticommute(self, operator_2):
-        anticommutator = self * operator_2 + operator_2 * self
-        anticommutator.remove_zero_weight()
-        return anticommutator
-
-    def simplify(self):
-        for idx, weight in enumerate(self.weights):
-            self.weights[idx] = sympy.simplify(sympy.expand(weight))
-        self.remove_zero_weight()
 
     ##############################################
     ######       COMPARISON STATEMENTS       #####
@@ -730,9 +779,8 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentFermion
     def __eq__(self, oper_sequence: "FermionSequence") -> bool:
         """
         Check equality of two FermionSequences.
-        Two sequences are determined equal
-        if they have identical subsequences with the same weights, regardless of the
-        order they appear in.
+        Two sequences are determined equal if they have identical subsequences with the same weights,
+        regardless of the order they appear in.
         """
         if not isinstance(oper_sequence, FermionSequence):
             return False
@@ -741,9 +789,8 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentFermion
     def __ne__(self, oper_sequence: "FermionSequence") -> bool:
         """
         Check inequality of two FermionSequence.
-        Two sequences are determined equal
-        if they have identical subsequences with the same weights, regardless of the
-        order they appear in.
+        Two sequences are determined non-equal if they do not have identical subsequences,
+        regardless of the order they appear in.
         """
         if not isinstance(oper_sequence, "FermionSequence"):
             return True
@@ -755,8 +802,6 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentFermion
     _getitem_handlers = {
         slice: "_get_slice",
         tuple: "_get_tuple",
-        np.ndarray: "_get_ndarray",
-        str: "_get_str",
         int: "_get_int",
     }
 
@@ -764,13 +809,6 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentFermion
         return all(item in self.oper_list for item in subsequence.oper_list)
 
     def __getitem__(self, indexing) -> "FermionSequence":
-        # if isinstance(indexing, (sys.modules[__name__].FockStates,sys.modules[__name__].FockStatesSparse)):
-        #    if not hasattr(self,'basis_dict'):
-        #        return self.__and__(indexing)
-        #    if indexing not in self.basis_dict:
-        #        return self.__and__(indexing)
-        #    return self.basis_dict[indexing]
-
         handler_func_name = self._getitem_handlers.get(
             type(indexing), "_handle_get_default"
         )
@@ -799,9 +837,6 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentFermion
         )
         return subsequence
 
-    def _get_ndarray(self, indexing: np.ndarray):
-        print("array slicing not yet supported")
-
     def _get_int(self, indexing: int):
         subsequence = FermionSequence(
             [deepcopy(self.oper_list[indexing])],
@@ -809,6 +844,3 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentFermion
             bypass_parse=True,
         )
         return subsequence
-
-    def _get_str(self, indexing: str):
-        print("string slicing not yet supported")

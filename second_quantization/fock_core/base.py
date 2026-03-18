@@ -22,9 +22,9 @@ def operator_verbose(type_str: str, position: int, spin: str):
 
 def operator_from_string(type_str):
     """
-    Method for constructing an operator from a string sequence, implementing
-    the convention utilized by OpenFermion. Passes a
-    correctly formatted call on to construct_operator()
+    Convenience function for constructing an operator from a string sequence, implementing
+    the convention utilized by OpenFermion.
+    Passes a correctly formatted call on to construct_operator()
     """
     position = int(type_str[0]) // 2
     spin = int(type_str[0]) & 0b1
@@ -34,7 +34,7 @@ def operator_from_string(type_str):
 
 def construct_operator(position: int, spin: int, annihilation: bool = True):
     """
-    Creates the integer representing an operator.
+    Creates the integer representing an operator, in the default normal ordered convention.
     The smallest bit is set or unset depending on whether it stores a creation or annihilation operator
     The remaining bits store the bit position of the operator to act on, which depends on position and spin
     Args:
@@ -145,29 +145,6 @@ class FermionSequenceBase:
         str: "_set_str",
     }
 
-    def __call__(self, value_dict):
-        if not hasattr(self, "_sympy_dict"):
-            raise AttributeError(
-                "The FermionSequence object does not have the necessary attributes to set values by calling. Make sure the object was initialized from a sympy expression or that the _sympy_dict attribute is properly set."
-            )
-        if not hasattr(self, "basis_dict"):
-            raise AttributeError(
-                "No sparse representation has been initiated for this FermionSequence object. Make sure to initialize a sparse representation for the relevant basis before setting values by calling."
-            )
-        for sympy_key, new_value in value_dict.items():
-            if sympy_key not in self._sympy_dict.keys():
-                raise KeyError(
-                    f"SymPy key {sympy_key} not found in the FermionSequence's internal dictionary. Make sure to only set values for keys that are already present in the dictionary."
-                )
-            old_value = self._sympy_dict[sympy_key][0]
-            sympy_to_opers_str_list = self._sympy_dict[sympy_key][1]
-            self._sympy_dict[sympy_key] = (new_value, sympy_to_opers_str_list)
-            if hasattr(self, "basis_dict"):
-                for _, sparse_representation in self.basis_dict.items():
-                    sparse_representation.update_values(
-                        sympy_to_opers_str_list, old_value, new_value
-                    )
-
     def __setitem__(self, indexing, value: [int, float, complex]):
         if isinstance(indexing, self.__class__):
             old_val, str_list = self._set_opersequence(indexing, value)
@@ -177,9 +154,6 @@ class FermionSequenceBase:
             )
             handler_func = getattr(self, handler_func_name)
             old_val, str_list = handler_func(indexing, value)
-        if hasattr(self, "basis_dict"):
-            for fock_basis, sparse_representation in self.basis_dict.items():
-                sparse_representation.update_values(str_list, old_val, value)
 
     def _handle_set_default(self, indexing, value):
         raise TypeError(f"Setting value by {type(indexing).__name__} not supported")

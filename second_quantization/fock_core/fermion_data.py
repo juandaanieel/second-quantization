@@ -1,32 +1,43 @@
 # codespell:ignore COO
+from .fock_basis import FockBasis
 from scipy.sparse import coo_array, csr_array
 import numpy as np
 
-from typing import List
+
+class _FermionDataBackend:
+    """
+    Common class handling/enforcing common properties for all data backends
+    """
+
+    def __init__(self, fock_basis: "FockBasis"):
+        self.fock_basis = fock_basis
+        self.dim = len(fock_basis)
 
 
-class FermionSequenceData:
+class _FermionDataSparseCOO(_FermionDataBackend):
     """
     Stores data representing the action of a FermionSequence instance on a specific basis
-    Maintains the minimal data in sparse format (rows, columns, values), with additional
+    Maintains the data in sparse COO format (rows, columns, values), with additional
     information that allows for quickly updating values when weights of the FermionSequence are adjusted.
 
-    Implements conversion to numpy arrays (.to_array()) or scipy coo_matrix format (.to_sparse_coo())
+    Allows conversion to numpy arrays (.to_array()) or scipy csr_matrix format (.to_sparse_csr())
     Args:
-        sparse_data (tuple): a 5-tuple containing the data in sparse format (rows, columns, values, parities, type_dict)
-        fock_space_size (int): the size of the fock space (N) for which the data was generated, used to determine the shape of the full matrix when converting to array format.
+        sparse_data (tuple): a 5-tuple containing the data in sparse format (rows, columns, values, parities, type_dict).
+        fock_space (FockBasis): FockBasis object for which the data was generated.
     Attrs:
         rows (np.ndarray[int]): row indices of non-zero elements
         cols (np.ndarray[int]): column indices of non-zero elements
         values (np.ndarray[complex]): values of non-zero elements
         parities (np.ndarray[int]): the fermionic sign under action of operators for each element, used for updating values when weights of the FermionSequence are adjusted.
         type_dict (dict): dict encoding which operators gave rise to elements in rows/cols
-    Storage:
-        data_array (Optional np.ndarray[complex]): full numpy array generated from rows,cols and values, stored for quick access if generated. Updated when weights of the FermionSequence are adjusted.
     """
 
-    def __init__(self, sparse_data: np.ndarray, fock_space: int):
-        self.N = fock_space.N
+    def __init__(
+        self,
+        fock_basis: "FockBasis",
+        sparse_data: np.ndarray,
+    ):
+        super().__init__(fock_basis)
         self.rows = sparse_data[0]
         self.cols = sparse_data[1]
         self.values = sparse_data[2]
@@ -35,7 +46,7 @@ class FermionSequenceData:
 
     def _repr_markdown_(self):
         nnz = len(self.values)
-        dim = 2**self.N
+        dim = self.dim
         dtype = np.asarray(self.values).dtype
 
         md = []
@@ -82,127 +93,82 @@ class FermionSequenceData:
             new_values = signs * new_val
             self.values[type_slice] = new_values
 
-        ## If it has been created, update the matrix
-        if hasattr(self, "data_array"):
-            for key in type_keys:
-                type_slice = self.type_dict[key]
-                rows = self.rows[type_slice]
-                cols = self.cols[type_slice]
-                signs = self.parities[type_slice]
-                old_values = signs * old_val
-                filter_diagonal = np.where(
-                    rows != cols
-                )  ## Prevent double counting of the diagonal terms
-                np.add.at(
-                    self.data_array,
-                    (
-                        np.append(rows, cols[filter_diagonal]),
-                        np.append(cols, rows[filter_diagonal]),
-                    ),
-                    np.append(
-                        -old_values + new_values,
-                        -np.conj(old_values[filter_diagonal])
-                        + np.conj(new_values[filter_diagonal]),
-                    ),
-                )
-
     def to_array(self) -> np.ndarray:
         """
+        Converts FermionSequenceData to a numpy ndarray
         Returns:
-
+            np_array: numpy ndarray
         """
         if hasattr(self, "data_array"):
             return self.data_array
-        array_size = 2**self.N
-
-        arr = np.zeros((array_size, array_size), dtype=complex)
-
-        filter_diagonal = self.rows != self.cols
-        rows = np.concatenate((self.rows, self.cols[filter_diagonal]))
-        cols = np.concatenate((self.cols, self.rows[filter_diagonal]))
-        vals = np.concatenate((self.values, np.conj(self.values[filter_diagonal])))
-
-        np.add.at(arr, (rows, cols), vals)
-        self.data_array = arr
-        return arr
-
-    def to_sparse_coo(self) -> coo_array:
-        """
-        Converts the OperSequenceData to a sparse COO matrix format.
-        Returns:
-            coo_array: A sparse matrix in COO format.
-        """
-        N = 2**self.N
-        filter_diagonal = np.where(self.rows != self.cols)
-        rows = np.append(self.rows, self.cols[filter_diagonal])
-        cols = np.append(self.cols, self.rows[filter_diagonal])
-        vals = np.append(
-            self.values,
-            np.conj(self.values[filter_diagonal]),
-        )
-        return coo_array((vals, (rows, cols)), shape=(N, N))
+        array_size = self.dim
+        np_array = np.zeros((array_size, array_size), dtype=complex)
+        np.add.at(np_array, (self.rows, self.cols), self.values)
+        self.data_array = np_array
+        return np_array
 
     def to_sparse_csr(self) -> csr_array:
         """
-        Converts the OperSequenceData to a sparse CSR matrix format.
+        Converts FermionSequenceData to a sparse CSR matrix format.
         Returns:
             csr_array: A sparse matrix in CSR format.
+
+        Notes:
+            Incurs significant overhead for larger systems.
         """
-        N = 2**self.N
-        filter_diagonal = np.where(self.rows != self.cols)
-        rows = np.append(self.rows, self.cols[filter_diagonal])
-        cols = np.append(self.cols, self.rows[filter_diagonal])
-        vals = np.append(
-            self.values,
-            np.conj(self.values[filter_diagonal]),
+        return csr_array(
+            (self.values, (self.rows, self.cols)), shape=(self.dim, self.dim)
         )
-        return csr_array((vals, (rows, cols)), shape=(N, N))
 
-    def connected_components(self) -> List[List[int]]:
+    def to_sparse_coo(self) -> coo_array:
         """
-        Get the connected components of the FockStates represented by the non-zero elements in the data. Connected components are groups of FockStates that are connected to each other through the action of the operators.
-        Allows to get a block diagonal form of the system by grouping together connected FockStates.
+        Converts FermionSequenceData to a sparse COO matrix format.
         Returns:
-            List[List[int]]: A list of connected components, where each component is a list of indices of FockStates that are connected to each other through the action of the operators in the sequence.
+            coo_array: A sparse matrix in COO format.
         """
-        idx = [[0]]
-        components = [[self.rows[0], self.cols[0]]]
-        for r, c in zip(self.rows[1:], self.cols[1:]):
-            present_in = []
-            for idx, comp in enumerate(components):
-                r_present = r in comp
-                c_present = c in comp
-                if r_present and c_present:
-                    present_in.append(idx)
-                elif r_present:
-                    components[idx].extend([c])
-                    present_in.append(idx)
-                elif c_present:
-                    components[idx].extend([r])
-                    present_in.append(idx)
-            if len(present_in) == 0:
-                components.append([r, c])
-            elif len(present_in) > 1:
-                for p_idx in present_in[-1:0:-1]:
-                    components[present_in[0]].extend(components[p_idx])
-                    components.pop(p_idx)
+        return coo_array(
+            (self.values, (self.rows, self.cols)), shape=(self.dim, self.dim)
+        )
 
-        connected_components = [list(set(comp)) for comp in components]
-        return connected_components
+    def get(self) -> coo_array:
+        """
+        Returns the native data-type format
+        """
+        return self.to_sparse_coo()
 
+
+class FermionData:
     """
-    def to_block_diagonal_basis(self) -> FockStates:
-        ###
-        ###Calculate a new order for the basis such that the system is block diagonal
-        ###
-        components = self.connected_components()
-        reverse_hash = []
-        for key in self.fock_basis.hashed.keys():
-            reverse_hash.append(key)
-
-        new_states_order = []
-        for j in range(len(components)):
-            new_states_order.extend(list(components[j]))
-        states_block_basis= [reverse_hash[i] for i in new_states_order]
-        return FockStates(states_block_basis)
+    User facing class, storing the data representation of a FermionSequence in a given basis.
     """
+
+    _backends_dict = {
+        "coo": _FermionDataSparseCOO,
+        #    'csr': "_FermionDataSparseCSR",
+        #    'array': "_FermionDataArray",
+    }
+
+    def __init__(self, fock_basis, data, data_backend: str = "coo"):
+        self._backend = self._backends_dict.get(data_backend)(fock_basis, data)
+
+    def get(self):
+        return self._backend.get()
+
+    def __call__(self, value_dict):
+        if not hasattr(self, "_sympy_dict"):
+            raise AttributeError(
+                "The FermionSequence object does not have the necessary attributes to set values by calling. Make sure the object was initialized from a sympy expression or that the _sympy_dict attribute is properly set."
+            )
+
+        for sympy_key, new_value in value_dict.items():
+            if sympy_key not in self._sympy_dict.keys():
+                raise KeyError(
+                    f"SymPy key {sympy_key} not found in the FermionSequence's internal dictionary. Make sure to only set values for keys that are already present in the dictionary."
+                )
+            old_value = self._sympy_dict[sympy_key][0]
+            sympy_to_opers_str_list = self._sympy_dict[sympy_key][1]
+            self._sympy_dict[sympy_key] = (new_value, sympy_to_opers_str_list)
+
+            self._backend.update_values(sympy_to_opers_str_list, old_value, new_value)
+
+    update_values = __call__  ## Alias

@@ -2,88 +2,17 @@ import numpy as np
 import sympy as sp
 from sympy.physics.quantum.fermion import FermionOp
 from sympy.physics.quantum import Dagger
-
-
-# %load_ext autoreload
-# %autoreload 2
-
-# # Example usage of FermionSequence()
-
-
 from second_quantization import fock_space
 from second_quantization.fock_space import c_down, c_up
 
-
-"""
-Implementation via FermionSequence() is fully self-contained in terms of implementing fermionic algebra without sympy
-and can be used to create and update Hamiltonians by itself.
-Multiple ways to initialize a sequenec are implemented, fastest is just to start with operators c_up/c_down and combine them to make terms.
-"""
-
-
-def build_H_fermi_hubbard(N):
-    ## The bitshift (>>) operators shifts an operator to act on a different site
-    ## The invert (~) operator takes the conjugate
-    ECT = (c_down * (~c_down >> 1) + c_up * (~c_up >> 1)) >> np.arange(1, N - 1)
-
-    ## Same operations are also implemented via dag() and extend()
-    MU = (c_down * (c_down.dag()) + c_up * (c_up.dag())).extend(np.arange(1, N))
-
-    ## Any sequence of operators can be made just by adding and multiplying terms
-    U = (c_up * c_down * ~c_up * ~c_down) >> np.arange(1, N)
-
-    ## It is convenient to separate terms of interest for easily updating their weights later
-    return U, MU, ECT
-
-
-N = 2
-U, MU, ECT = build_H_fermi_hubbard(N)
-H = U + MU + ECT
-H
-
-"""
-Updating values can be done in multiple ways. Most convenient is by setting the values via subsequences:
-"""
-# H[U] = 10
-H[ECT] = 2
-H[MU[0]] = 5
-H[MU[1]] = 20
-H
-
-H.to_sparse()
-
-"""
-Weights can also be Sympy expressions, which will need to be given a value later.
-@TODO currently this will cause different behavior compared to initializing a sequence below from a Sympy expression, need to make this consistent.
-"""
-u, t, mu = sp.symbols("U, t,mu")
-H_symbolic_weights = u * U + mu * MU + t * ECT
-H_symbolic_weights
-
-# +
-"""
-Once Hamiltonian is set, to_sparse(N) creates a sparse representation of the Hamiltonian matrix, storing row/col/values and a dictionary for quickly updating values later.
-"""
-sparse_data = H.to_sparse(2 * N)
-
-"""
-From here one can convert to sparse arrays/numpy arrays
-"""
-coo_sparse = sparse_data.to_sparse_coo()
-csr_sparse = sparse_data.to_sparse_csr()
-np_array = sparse_data.to_array()
-
-"""
-Updating the Hamiltonian values after creating these objects, will automatically update the arrays as well without needing to rebuild the entire array and sparse_data structure
-"""
-H[U] = 10
-# -
+# %load_ext autoreload
+# %autoreload 2
 
 # # From Sympy to FermionSequence
 
 
 """
-Alternatively to the above, fock_space.to_sequence() takes a sympy expression and a list of FermionOps setting the normal order, and parses it to
+fock_space.to_sequence() takes a sympy expression and a list of FermionOps setting the normal order, and parses it to
 the underlying FermionSequence() while maintaining the relation to the FermionOps.
 """
 
@@ -91,6 +20,8 @@ t, U, mu = sp.symbols("t U mu", real=True)
 
 
 def build_spinful_chain_hamiltonian(n):
+    t, U, mu = sp.symbols("t U mu", real=True)
+
     ops_up = [FermionOp("c_{" + f"{i}" + "\\uparrow}") for i in range(n)]
     ops_dn = [FermionOp("c_{" + f"{i}" + "\\downarrow}") for i in range(n)]
     opers_sorted = []
@@ -126,33 +57,100 @@ def build_spinful_chain_hamiltonian(n):
     return H, ops_up + ops_dn
 
 
-N = 2
+N = 9
 ## Example: Built Sympy hamiltonian and FermionOps
-H_sympy, fermops = build_spinful_chain_hamiltonian(N)
+H_sympy, ops = build_spinful_chain_hamiltonian(N)
 H_sympy
 
-H_seq = fock_space.to_sequence(H_sympy, fermops)
+H_seq = fock_space.to_sequence(H_sympy, ops)
 H_seq  ## This H is now a FermionSequence()
 
 """
-.to_sparse() works in the same way, at first initializing an array of zeros
-(@TODO - see if empty array or array of 0's is best. In any case makes sense to clear the memory in advance)
+To create the data representation
 """
-sparse_data = H_seq.to_sparse()
-sparse_data.values
+H_data = H_seq.compile(data_format="coo")
+H_data.get()  ## Obtain the array of data
 
 """
-To fill the sparse array, call H_seq with a dictionary mapping the sympy symbols to values
+To fill the sparse array, call H_data with a dictionary mapping the sympy symbols to values
 """
-H_seq({U: 5, t: 10, mu: 7})
-sparse_data.values
+H_data({t: 1.0, U: 2.5, mu: 3})  ## Fill the parametrized values
+H_data.update_values({t: 1.0, U: 2.5, mu: 3})  ## Aliased alternative for readability
 
 """
 Any FermionSequence() can be converted back to sympy
 """
 sympy_expr, operators = H_seq.to_sympy()
-sympy_expr
+sympy_expr  ## This is now a sympy expression
 
+# ## Compact example
+
+H_sympy, ops = build_spinful_chain_hamiltonian(n=9)  ## Built sympy array
+H = fock_space.to_sequence(H_sympy, ops)  ## Map Sympy to FermionSequence
+H_data = H.compile(
+    data_format="coo"
+)  ## Compile in default fock basis, returning COO format
+H_data({t: 1.0, U: 2.5, mu: 3})  ## Set parametrized values
+H_data.get()  ## Get sparse array
+
+# # Example usage of FermionSequence()
+
+
+"""
+Implementation via FermionSequence() is fully self-contained in terms of implementing fermionic algebra without sympy
+and can be used to create and update Hamiltonians by itself.
+Multiple ways to initialize a sequenec are implemented, fastest is just to start with operators c_up/c_down and combine them to make terms.
+"""
+
+
+def build_H_fermi_hubbard(N):
+    ## The bitshift (>>) operators shifts an operator to act on a different site
+    ## The invert (~) operator takes the conjugate
+    ECT = (c_down * (~c_down >> 1) + c_up * (~c_up >> 1)) >> np.arange(1, N - 1)
+    ECT += ~ECT
+
+    ## Same operations are also implemented via dag() and extend()
+    MU = (c_down * (c_down.dag()) + c_up * (c_up.dag())).extend(np.arange(1, N))
+
+    ## Any sequence of operators can be made just by adding and multiplying terms
+    U = (c_up * c_down * ~c_up * ~c_down) >> np.arange(1, N)
+
+    ## It is convenient to separate terms of interest for easily updating their weights later
+    return U, MU, ECT
+
+
+N = 2
+U, MU, ECT = build_H_fermi_hubbard(N)
+H = U + MU + ECT
+H
+
+"""
+Initializing values can be done in multiple ways. Most convenient is by setting the values via subsequences:
+"""
+H[U] = -10
+H[ECT] = 2
+H[MU[0]] = 5
+H[MU[1]] = 20
+H
+
+"""
+Weights can also be parametrized via Sympy expressions, which will need to be given a value later.
+@TODO currently this will as of now cause different behavior compared to initializing a sequence below from a Sympy expression, need to make this consistent.
+"""
+u, t, mu = sp.symbols("U, t,mu")
+H_symbolic_weights = u * U + mu * MU + t * ECT
+H_symbolic_weights
+
+"""
+Once Hamiltonian is set, compile() creates a representation of the Hamiltonian matrix in chosen data_format, storing additional info for quickly updating values later.
+"""
+U, MU, ECT = build_H_fermi_hubbard(N)
+H = U + MU + ECT
+H_data = H.compile(data_format="coo")
+"""
+From here one can obtain the data array for doing things
+"""
+H_data.get()  ## Returns the native data-type of whichever data backend was chosen (so that by default it returns the data-type the structure was optimized for)
 
 # # Potential benefit: faster fermionic operations
 
@@ -289,10 +287,3 @@ Getting the commutator with the FermionSequence() structure
 commutator = Q * H - H * Q
 commutator.simplify()
 commutator
-
-"""
-Getting the commutator with sympy
-"""
-H_sympy = H.to_sympy()[0]
-Q_sympy = Q.to_sympy()[0]
-# %time commutator_sympy = normal_ordered_form((Q_sympy*H_sympy-H_sympy*Q_sympy).expand())

@@ -87,7 +87,7 @@ class RepresentFermionsMixin:
 
     def _repr_markdown_(self):
         if hasattr(self, "_sympy_operators"):
-            return self.to_sympy()[0].simplify()._repr_latex_()
+            return self.to_sympy()[0]._repr_latex_()
 
         operstr = ""
         ## Return Zero symbol for empty operator

@@ -20,6 +20,9 @@ class FockBasis(RepresentFockBasisMixin):
         if not self.is_ordered:
             self.hashed = {num: idx for idx, num in enumerate(self.states)}
 
+    def __len__(self):
+        return len(self.states)
+
     @staticmethod
     def _parse_states(states: [int, List, np.ndarray]):
         if isinstance(states, int):
