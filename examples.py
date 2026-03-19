@@ -1,9 +1,13 @@
+# +
 import numpy as np
 import sympy as sp
 from sympy.physics.quantum.fermion import FermionOp
 from sympy.physics.quantum import Dagger
+
 from second_quantization import fock_space
+from second_quantization.fock_core.fock_basis import ParityMask
 from second_quantization.fock_space import c_down, c_up
+# -
 
 # %load_ext autoreload
 # %autoreload 2
@@ -21,7 +25,6 @@ t, U, mu = sp.symbols("t U mu", real=True)
 
 def build_spinful_chain_hamiltonian(n):
     t, U, mu = sp.symbols("t U mu", real=True)
-
     ops_up = [FermionOp("c_{" + f"{i}" + "\\uparrow}") for i in range(n)]
     ops_dn = [FermionOp("c_{" + f"{i}" + "\\downarrow}") for i in range(n)]
     opers_sorted = []
@@ -62,12 +65,16 @@ N = 9
 H_sympy, ops = build_spinful_chain_hamiltonian(N)
 H_sympy
 
-H_seq = fock_space.to_sequence(H_sympy, ops)
+"""
+Initialize the FermionSequence object
+"""
+H_seq = fock_space.FermionSequence(H_sympy, sympy_operators=ops)
 H_seq  ## This H is now a FermionSequence()
 
 """
-To create the data representation
+Compile the data representation
 """
+# %time H_data = H_seq.compile(data_format="coo")
 H_data = H_seq.compile(data_format="coo")
 H_data.get()  ## Obtain the array of data
 
@@ -78,6 +85,15 @@ H_data({t: 1.0, U: 2.5, mu: 3})  ## Fill the parametrized values
 H_data.update_values({t: 1.0, U: 2.5, mu: 3})  ## Aliased alternative for readability
 
 """
+Optional: compile the data representation in a non-ordered basis
+"""
+basis = fock_space.FockBasis(18)  ## Create full basis for 18 fermionic sites
+even_basis = basis.restrict(ParityMask("even"))  ## Restrict the basis using ParityMask
+# %time H_data = H_seq.compile(even_basis, data_format="coo") ## Compile in the specific basis
+H_data = H_seq.compile(even_basis, data_format="coo")
+H_data.get()  ## Obtain the array of data
+
+"""
 Any FermionSequence() can be converted back to sympy
 """
 sympy_expr, operators = H_seq.to_sympy()
@@ -85,8 +101,10 @@ sympy_expr  ## This is now a sympy expression
 
 # ## Compact example
 
-H_sympy, ops = build_spinful_chain_hamiltonian(n=3)  ## Built sympy array
-H = fock_space.to_sequence(H_sympy, ops)  ## Map Sympy to FermionSequence
+H_sympy, ops = build_spinful_chain_hamiltonian(n=7)  ## Built sympy array
+H = fock_space.FermionSequence(
+    H_sympy, sympy_operators=ops
+)  ## Map Sympy to FermionSequence
 H_data = H.compile(
     data_format="coo"
 )  ## Compile in default fock basis, returning COO format

@@ -45,40 +45,51 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentFermion
     #####################################
     def __init__(
         self,
-        *operators: tuple[List[int], str, int, tuple],
+        *operators: [List, tuple, int, sympy.Basic],
         weights: List = None,
         bypass_parse: bool = False,
+        sympy_operators: List[FermionOp] = None,
     ):
         """
         Initialise a sequence of operators with specified weights.
         Args:
-            *operators (tuple[List[int], str, int, tuple]): a variable length argument list of operators in the sequence, where each operator can be represented as a list of integers, a string, an integer, or a tuple
+            *operators ([List[int], int, tuple]): a variable length argument list of operators in the sequence, where each operator can be represented as a list of integers, a string, an integer, or a tuple
             weights (List): a list of values storing the weight of each subsequence of operators. If not provided, all weights are set to 1 by default. Weights can be int, float, complex, or sympy expressions.
             bypass_parse (bool): flag to indicate whether the input weights and oper_list should be stored directly if they are already in the correct format (used for internal functions to save time by avoiding parsing)
         """
         ## For internally created FermionSequence objects, directly load data without parsing as format can be assumed to be correct
         if bypass_parse:
             self.oper_list = operators[0]
-            self.weights = (
-                weights
-                if weights is not None
-                else [1 for i in range(len(self.oper_list))]
-            )
+            self.weights = weights if weights is not None else [1] * len(self.oper_list)
             return
 
-        ## Otherwise parse the input operators and check shape of input weights if provided
+        ## Empty constructor just sets empty lists
+        if len(operators) == 0:
+            self.oper_list = []
+            self.weights = []
+            return
+
+        ## Sympy constructor path
+        if len(operators) == 1 and isinstance(operators[0], sympy.Basic):
+            oper_list, parsed_weights, sympy_dict = self._parse_sympy(
+                operators[0], sympy_operators
+            )
+            self.oper_list = oper_list
+            self.weights = parsed_weights
+            self._sympy_dict = sympy_dict
+            self._sympy_operators = sympy_operators
+            return
+
+        ## Regular constructor path
         parsed_operators = self.parse_operator_input(*operators)
         self.oper_list = parsed_operators
 
-        if weights is not None:
-            if len(weights) != len(parsed_operators):
-                raise ValueError(
-                    "Length of provided weights does not match number of subsequences"
-                )
+        if weights is not None and len(weights) != len(parsed_operators):
+            raise ValueError(
+                "Length of provided weights does not match number of subsequences"
+            )
 
-        self.weights = (
-            weights if weights is not None else [1 for _ in range(len(self.oper_list))]
-        )
+        self.weights = weights if weights is not None else [1] * len(self.oper_list)
 
     ##################################
     #####      Conversions       #####
@@ -93,7 +104,7 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentFermion
             operators (List[FermionOp]): The list of SymPy fermionic operators.
         """
         ### Generate list of new FermionOps of not yet present
-        if not hasattr(self, "_sympy_operators"):
+        if not hasattr(self, "_sympy_operators") or self._sympy_operators is None:
             operators = []
             max_n = max(max(sublist) for sublist in self.oper_list if len(sublist)) >> 1
             spins = ["\\downarrow", "\\uparrow"]
@@ -177,6 +188,11 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentFermion
         raise NotImplementedError
 
     def _construct_data_repr(self, fock_basis):
+        if fock_basis.is_ordered:
+            return self._construct_data_repr_ordered(fock_basis)
+        return self._construct_data_repr_restricted(fock_basis)
+
+    def _construct_data_repr_ordered(self, fock_basis):
         """
         Applies the stored hamiltonian to a set of fock states.
         FockStates are pre-wrapped in FockBasis for convenience, this allows constructing the Hamiltonian
@@ -189,11 +205,8 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentFermion
             type (dict): a dict pointing to where in the row/col memory the values related to a particular vector are stored
         """
         ## Initialize data
-        rows_list, cols_list, pars_list = [], [], []
-        types_dict = {}
-        old_idx = 0
+        rows_list, cols_list, pars_list, types_dict, data_idx = [], [], [], {}, 0
         type_strings = [self.oper_list_to_str(h) for h in self.oper_list]
-        vals = []
 
         ## Unpack reference to array and weights (saves time inside the loop for larger systems)
         oper_list = self.oper_list
@@ -211,16 +224,63 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentFermion
             cols_list.append(new_states)
             pars_list.append(parities)
             n_vals = new_states.shape[0]
-            types_dict[type_str] = slice(old_idx, old_idx + n_vals)
-            old_idx += n_vals
+            types_dict[type_str] = slice(data_idx, data_idx + n_vals)
+            data_idx += n_vals
 
-        rows = np.concatenate(rows_list)
-        cols = np.concatenate(cols_list)
-        parities = np.concatenate(pars_list)
+        return self._finalize_data_repr(
+            rows_list, cols_list, pars_list, types_dict, type_strings, weights, data_idx
+        )
+
+    def _construct_data_repr_restricted(self, fock_basis):
+        rows_list, cols_list, pars_list, types_dict, data_idx = [], [], [], {}, 0
+
+        type_strings = [self.oper_list_to_str(h) for h in self.oper_list]
+
+        oper_list = self.oper_list
+        weights = self.weights
+        act_func = self.act_oper_list
+        states = fock_basis.states
+
+        for h, type_str in zip(oper_list, type_strings):
+            old_states, new_states, parities = act_func(h, states)
+
+            row_indices, _ = fock_basis.get_indices(old_states)
+            col_indices, in_basis = fock_basis.get_indices(new_states)
+
+            rows_list.append(row_indices[in_basis])
+            cols_list.append(col_indices)
+            pars_list.append(parities[in_basis])
+
+            n_vals = np.count_nonzero(in_basis)
+            types_dict[type_str] = slice(data_idx, data_idx + n_vals)
+            data_idx += n_vals
+
+        return self._finalize_data_repr(
+            rows_list, cols_list, pars_list, types_dict, type_strings, weights, data_idx
+        )
+
+    def _finalize_data_repr(
+        self,
+        rows_list,
+        cols_list,
+        pars_list,
+        types_dict,
+        type_strings,
+        weights,
+        data_idx,
+    ):
+        if data_idx == 0:
+            rows = np.array([], dtype=np.int32)
+            cols = np.array([], dtype=np.int32)
+            parities = np.array([], dtype=np.int8)
+        else:
+            rows = np.concatenate(rows_list)
+            cols = np.concatenate(cols_list)
+            parities = np.concatenate(pars_list)
 
         ### Load values into right positions if weights are not symbolic
-        vals = np.zeros(old_idx, dtype=np.complex128)
-        if not isinstance(weights[0], sympy.Basic):
+        vals = np.zeros(data_idx, dtype=np.float64)
+        if len(weights) > 0 and not isinstance(weights[0], sympy.Basic):
             for value, type_str in zip(weights, type_strings):
                 data_slice = types_dict[type_str]
                 vals[data_slice] = value * parities[data_slice]

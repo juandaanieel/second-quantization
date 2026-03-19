@@ -210,3 +210,5 @@ axs[1].set_title("Basis Build Time")
 axs[1].legend(frameon=False)
 plt.tight_layout()
 plt.show()
+
+# %%

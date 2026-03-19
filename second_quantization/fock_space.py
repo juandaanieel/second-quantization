@@ -1,10 +1,9 @@
 from second_quantization.fock_core.fermion_sequence import FermionSequence
-from sympy.physics.quantum import Dagger
-import sympy
+from second_quantization.fock_core.fock_basis import FockBasis
 
-__all__ = ["FermionSequence"]
+__all__ = ["FermionSequence", "FockBasis"]
 
-
+"""
 def to_sequence(H, operators):
     H = H.expand()
 
@@ -39,7 +38,7 @@ def to_sequence(H, operators):
     ferm_sequence._sympy_dict = sympy_dict
 
     return ferm_sequence
-
+"""
 
 I = FermionSequence(1)  # noqa: E741
 eye = I

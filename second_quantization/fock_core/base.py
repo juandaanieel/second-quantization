@@ -1,53 +1,9 @@
 from typing import List
 import sympy
+from sympy.physics.quantum import Dagger
+from sympy.physics.quantum.fermion import FermionOp
+
 import numpy as np
-
-
-def operator_verbose(type_str: str, position: int, spin: str):
-    """
-    Verbose method for constructing an operator, passes the call on to
-    self.construct_operator
-    Args:
-        type (str): specify whether to make an annihilation or creation operator
-        position (int): the fermionic site to act on
-        spin (str): 'up' or 'down'
-    Returns:
-        oper (int): integer representing the operator
-    """
-    annihilation = type_str.startswith("a")
-    spin = 0 if (spin.startswith("d")) else 1
-    oper = construct_operator(position, spin, annihilation)
-    return oper
-
-
-def operator_from_string(type_str):
-    """
-    Convenience function for constructing an operator from a string sequence, implementing
-    the convention utilized by OpenFermion.
-    Passes a correctly formatted call on to construct_operator()
-    """
-    position = int(type_str[0]) // 2
-    spin = int(type_str[0]) & 0b1
-    creation = 0 if type_str[-1] == "^" else 1
-    return construct_operator(position, spin, creation)
-
-
-def construct_operator(position: int, spin: int, annihilation: bool = True):
-    """
-    Creates the integer representing an operator, in the default normal ordered convention.
-    The smallest bit is set or unset depending on whether it stores a creation or annihilation operator
-    The remaining bits store the bit position of the operator to act on, which depends on position and spin
-    Args:
-        position (int): fermionic site of operator to act on
-        spin (int): 0 = spin down, 1 = spin up
-        annihilation(bool): True = annihilation, False = creation
-
-    Returns:
-        oper (int): integer representing an operator
-    """
-    shift = ((position << 1) + spin) << 1
-    oper = shift + annihilation
-    return oper
 
 
 class FermionSequenceBase:
@@ -56,7 +12,6 @@ class FermionSequenceBase:
     ##################
     _parseinput_handlers = {
         int: "_parse_int",
-        str: "_parse_str",
         list: "_parse_list",
         tuple: "_parse_tuple",
         sympy.Basic: "_parse_sympy",
@@ -79,9 +34,73 @@ class FermionSequenceBase:
         return output_list
 
     @staticmethod
-    def _parse_sympy(operators_sympy: sympy.Basic) -> List[List]:
-        print("Not yet implemented")
-        return
+    def _construct_operator(position: int, spin: int, annihilation: bool = True):
+        """
+        Creates the integer representing an operator, in the default normal ordered convention.
+        The smallest bit is set or unset depending on whether it stores a creation or annihilation operator
+        The remaining bits store the bit position of the operator to act on, which depends on position and spin
+        Args:
+            position (int): fermionic site of operator to act on
+            spin (int): 0 = spin down, 1 = spin up
+            annihilation(bool): True = annihilation, False = creation
+
+        Returns:
+            oper (int): integer representing an operator
+        """
+        shift = ((position << 1) + spin) << 1
+        oper = shift + annihilation
+        return oper
+
+    @staticmethod
+    def _operator_verbose(type_str: str, position: int, spin: str):
+        """
+        Verbose method for constructing an operator, passes the call on to
+        self.construct_operator
+        Args:
+            type (str): specify whether to make an annihilation or creation operator
+            position (int): the fermionic site to act on
+            spin (str): 'up' or 'down'
+        Returns:
+            oper (int): integer representing the operator
+        """
+        annihilation = type_str.startswith("a")
+        spin = 0 if (spin.startswith("d")) else 1
+        oper = FermionSequenceBase._construct_operator(position, spin, annihilation)
+        return oper
+
+    def _parse_sympy(
+        self, sympy_expr, sympy_operator_order: List[FermionOp]
+    ) -> List[List]:
+        if sympy_operator_order is None:
+            raise ValueError(
+                "SymPy parsing requires `sympy_operator_order` to be provided."
+            )
+        sympy_expr = sympy_expr.expand()
+        oper_list, weights, sympy_dict = [], [], {}
+
+        for term in sympy_expr.as_ordered_terms():
+            sublist = []
+            coeff = 1
+            sympy_key = 1
+            for factor in term.as_ordered_factors():
+                if factor in sympy_operator_order:
+                    sublist.append(1 + 2 * sympy_operator_order.index(factor))
+                elif Dagger(factor) in sympy_operator_order:
+                    sublist.append(0 + 2 * sympy_operator_order.index(Dagger(factor)))
+                elif isinstance(factor, sympy.Symbol):
+                    coeff *= factor
+                    sympy_key *= factor
+                else:
+                    coeff *= factor
+
+            sublist.reverse()
+            oper_list.append(sublist)
+            weights.append(coeff)
+            if sympy_key not in sympy_dict.keys():
+                sympy_dict[sympy_key] = (0, [])
+            sympy_dict[sympy_key][1].append(self.oper_list_to_str(sublist))
+
+        return oper_list, weights, sympy_dict
 
     @staticmethod
     def _handle_parse_default(operators):
@@ -93,13 +112,6 @@ class FermionSequenceBase:
     @staticmethod
     def _parse_int(operator_int: int) -> List[List]:
         return []
-
-    @staticmethod
-    def _parse_str(operator_str: str) -> List[int]:
-        split_str = operator_str.split(",")
-        parsed_str = [operator_from_string(s) for s in split_str]
-        parsed_str.reverse()
-        return parsed_str
 
     @staticmethod
     def _parse_list(operator_list: List[int]) -> List[int]:
@@ -120,11 +132,11 @@ class FermionSequenceBase:
                         raise TypeError(
                             "Not possible to parse a nested tuple with dimension > 2"
                         )
-                output.append(operator_verbose(*subop_tuple))
+                output.append(FermionSequenceBase._operator_verbose(*subop_tuple))
             output.reverse()
             return output
         else:
-            return [operator_verbose(*operator_tuple)]
+            return [FermionSequenceBase._operator_verbose(*operator_tuple)]
 
     @staticmethod
     def oper_list_to_str(oper_list):
@@ -193,6 +205,8 @@ class FermionSequenceBase:
                 )
             self.weights = values
         return self
+
+    set_values = __gt__  ## readable alias
 
     #####################
     ### ACT ON STATES ###
