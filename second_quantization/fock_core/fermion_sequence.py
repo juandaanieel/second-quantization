@@ -15,6 +15,14 @@ from .Mixins.representation import RepresentFermionsMixin
 from .Mixins.algebra import FermionAlgebraMixin
 
 
+def common_prefix_length(a, b):
+    n = min(len(a), len(b))
+    for i in range(n):
+        if a[i] != b[i]:
+            return i
+    return n
+
+
 class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentFermionsMixin):
     """
     Represents sequences of fermionic operators and handles common arithmetic operations.
@@ -133,13 +141,15 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentFermion
     ####################################################
     #####      CONSTRUCT DATA REPRESENTATION       #####
     ####################################################
-    _compile_formats_dict = {
-        "coo": "_compile_sparse_coo",
-        "csr": "_compile_sparse_csr",
-        "array": "_compile_array",
-    }
+    _compile_formats_list = ["coo", "csr", "array"]
 
     def compile(self, fock_basis: [int, FockBasis] = None, data_format="coo"):
+        if data_format not in self._compile_formats_list:
+            raise ValueError(
+                f"Selected invalid data_format. "
+                f"Implemented data formats are: {self._compile_formats_list}"
+            )
+
         ## If given an integer, generate a FockBasis object for later convenience
         if isinstance(fock_basis, int):
             fock_basis = FockBasis(fock_basis)
@@ -151,85 +161,108 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentFermion
             ) + 1
             fock_basis = FockBasis(inferred_N)
 
-        ## Get function for compiling correct data format
-        compiler_func_name = self._compile_formats_dict.get(
-            data_format, "_handle_compile_default"
-        )
-        compiler_func = getattr(self, compiler_func_name)
-        return compiler_func(fock_basis)
-
-    def _handle_compile_default(self, fock_basis: FockBasis):
-        allowed = ", ".join(sorted(self._compile_formats_dict.keys()))
-        raise ValueError(
-            f"Selected invalid data_format. " f"Implemented data formats are: {allowed}"
-        )
-
-    def _compile_array(self, fock_basis: FockBasis):
-        ## Construct the sparse representation object
+        ## Construct the sparse representation object in specified basis
         sparse_data = FermionData(
-            fock_basis, self._construct_data_repr(fock_basis), data_backend="array"
+            fock_basis, self._construct_data_repr(fock_basis), data_backend=data_format
         )
+
         ## Copy sympy identifiers for quick updating of sparse data representation
         if hasattr(self, "_sympy_dict"):
             sparse_data._sympy_dict = self._sympy_dict
-        return sparse_data
 
-    def _compile_sparse_coo(self, fock_basis: FockBasis):
-        ## Construct the sparse representation object
-        sparse_data = FermionData(
-            fock_basis, self._construct_data_repr(fock_basis), data_backend="coo"
-        )
-        ## Copy sympy identifiers for quick updating of sparse data representation
-        if hasattr(self, "_sympy_dict"):
-            sparse_data._sympy_dict = self._sympy_dict
         return sparse_data
-
-    def _compile_sparse_csr(self, fock_basis: FockBasis):
-        raise NotImplementedError
 
     def _construct_data_repr(self, fock_basis):
         if fock_basis.is_ordered:
             return self._construct_data_repr_ordered(fock_basis)
         return self._construct_data_repr_restricted(fock_basis)
 
-    def _construct_data_repr_ordered(self, fock_basis):
+    def _construct_data_repr_ordered(self, fock_basis: FockBasis):
         """
-        Applies the stored hamiltonian to a set of fock states.
-        FockStates are pre-wrapped in FockBasis for convenience, this allows constructing the Hamiltonian
-        also in a restricted subspace.
+        Applies the stored hamiltonian to a set of ordered fock states, wrapped in FockBasis.
+
         Returns:
             rows (ndarray[int]): row indices of non-zero terms
             cols (ndarray[int]): column indices of non-zero terms
             vals (ndarray[complex]): values of each row/col pair
-            pars (ndarray[int]): relative signs of operators for the non-zero terms, for updating the array later
-            type (dict): a dict pointing to where in the row/col memory the values related to a particular vector are stored
+            pars (ndarray[int]): relative signs of operators, required for updating the arrays at later stage
+            type (dict): a dict pointing to where in the row/col memory the values related to a particular operator are stored
         """
-        ## Initialize data
-        rows_list, cols_list, pars_list, types_dict, data_idx = [], [], [], {}, 0
+        ### Initialize data storage
+        ## Pre-calculate the amount of data that will be generated
+        dim_basis = fock_basis.N
+        n_required_data = 0
+        for oper in self.oper_list:
+            k = np.unique(np.array(oper) >> 1).size
+            n_required_data += 2 ** (dim_basis - k)
+
+        ## Fill empty arrays
+        rows = np.empty(n_required_data, dtype=np.int32)
+        cols = np.empty(n_required_data, dtype=np.int32)
+        signs = np.empty(n_required_data, dtype=np.int8)
+        values = np.zeros(n_required_data, dtype=np.float64)
+
+        types_dict, data_idx = {}, 0
         type_strings = [self.oper_list_to_str(h) for h in self.oper_list]
 
         ## Unpack reference to array and weights (saves time inside the loop for larger systems)
-        oper_list = self.oper_list
-        weights = self.weights
-        act_func = self.act_oper_list
+        oper_list, weights = self.__class__.sort_lexicographical(
+            self.oper_list, self.weights
+        )
         states = fock_basis.states
+        act_func = self._act_oper_list_cached
+        numeric_weights = all(not isinstance(w, sympy.Basic) for w in weights)
+
+        ## Test Caching
+        ones = np.ones(len(states), dtype=np.int8)
+        data_cache = {"data": (states, states, ones)}
+        cache_until_list = []
+        for idx in range(len(oper_list) - 1):
+            cache_until_list.append(
+                common_prefix_length(oper_list[idx], oper_list[idx + 1])
+            )
+        cache_until_list.append(0)
+        cached_until = 0
 
         ## Loop over operators and type string, apply each operator list to set of states
-        for h, type_str in zip(oper_list, type_strings):
-            old_states, new_states, parities = act_func(
-                h,
-                states,
+        for h, type_str, weight, cache_until in zip(
+            oper_list, type_strings, weights, cache_until_list
+        ):
+            old_states, new_states, new_signs = act_func(
+                h, states, data_cache, cached_until, cache_until, ones
             )
-            rows_list.append(old_states)
-            cols_list.append(new_states)
-            pars_list.append(parities)
+            cached_until = cache_until
+
             n_vals = new_states.shape[0]
-            types_dict[type_str] = slice(data_idx, data_idx + n_vals)
+            memory_slice = slice(data_idx, data_idx + n_vals)
+            types_dict[type_str] = memory_slice
+            rows[memory_slice] = old_states
+            cols[memory_slice] = new_states
+            signs[memory_slice] = new_signs
+            if numeric_weights:
+                values[memory_slice] = weight * new_signs
             data_idx += n_vals
 
-        return self._finalize_data_repr(
-            rows_list, cols_list, pars_list, types_dict, type_strings, weights, data_idx
-        )
+        return rows, cols, values, signs, types_dict
+
+    def _act_oper_list_cached(
+        self, oper_list, states, data_cache, cached_until, cache_until, ones
+    ):
+        old_states, new_states, signs = data_cache.get("data")
+
+        applied_len = cached_until
+        for oper in oper_list[cached_until:]:
+            states_alive_filt, new_states, new_parity = self.act_oper(oper, new_states)
+            signs = signs[states_alive_filt] * new_parity
+            old_states = old_states[states_alive_filt]
+            applied_len += 1
+            if applied_len == cache_until:
+                data_cache["data"] = (old_states, new_states, signs)
+
+        if cache_until == 0:
+            data_cache["data"] = (states, states, ones)
+
+        return old_states, new_states, signs
 
     def _construct_data_repr_restricted(self, fock_basis):
         rows_list, cols_list, pars_list, types_dict, data_idx = [], [], [], {}, 0
@@ -238,12 +271,10 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentFermion
 
         oper_list = self.oper_list
         weights = self.weights
-        act_func = self.act_oper_list
         states = fock_basis.states
 
         for h, type_str in zip(oper_list, type_strings):
-            old_states, new_states, parities = act_func(h, states)
-
+            old_states, new_states, parities = self.act_oper_list(h, states)
             row_indices, _ = fock_basis.get_indices(old_states)
             col_indices, in_basis = fock_basis.get_indices(new_states)
 
@@ -279,7 +310,7 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentFermion
             parities = np.concatenate(pars_list)
 
         ### Load values into right positions if weights are not symbolic
-        vals = np.zeros(data_idx, dtype=np.float64)
+        vals = np.zeros(data_idx, dtype=np.complex128)
         if len(weights) > 0 and not isinstance(weights[0], sympy.Basic):
             for value, type_str in zip(weights, type_strings):
                 data_slice = types_dict[type_str]
@@ -778,33 +809,28 @@ class FermionSequence(FermionSequenceBase, FermionAlgebraMixin, RepresentFermion
 
     def sort(self) -> None:
         """
-        Method for placing an operator sequence in a specific (hand-picked) order.
-        Subsequences are ordered by site-index of their rightmost operator (= first operator in the list)
+        Sort subsequences lexicographically by their internal operator-list order.
 
             Returns: None (FermionSequence is modified in-place)
         """
-        nested = deepcopy(self.oper_list)
-        weights = deepcopy(self.weights)
-
-        max_len = max(len(lst) for lst in nested)
-        padded_nested = [([-1] * (max_len - len(lst)) + lst) for lst in nested]
-
-        # Zip and sort by reversed sublist (i.e., last digit first)
-        combined = list(zip(padded_nested, nested, weights))
-        sorted_combined = sorted(combined, key=lambda x: x[0][::-1])
-
-        # Extract the results
-        sorted_nested = [x[1] for x in sorted_combined]
-        sorted_weights = [x[2] for x in sorted_combined]
-
-        final_sorted = sorted(
-            zip(sorted_nested, sorted_weights), key=lambda x: len(x[0])
+        self.oper_list, self.weights = self.sort_lexicographical(
+            self.oper_list, self.weights
         )
-        final_nested = [x[0] for x in final_sorted]
-        final_weights = [x[1] for x in final_sorted]
 
-        self.weights = final_weights
-        self.oper_list = final_nested
+    @staticmethod
+    def sort_lexicographical(oper_list, weights) -> None:
+        """
+        Sort subsequences lexicographically by their internal operator-list order.
+        This keeps terms with common prefixes adjacent, which is useful for compile-time
+        prefix caching.
+
+            Returns: None (FermionSequence is modified in-place)
+        """
+        combined = list(zip(deepcopy(oper_list), deepcopy(weights)))
+        combined.sort(key=lambda x: tuple(x[0]))
+        oper_list = [seq for seq, _ in combined]
+        weights = [weight for _, weight in combined]
+        return oper_list, weights
 
     #####################################
     #####    Boolean Properties     #####

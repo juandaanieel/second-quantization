@@ -2,6 +2,8 @@
 import time
 import numpy as np
 import sympy
+import gc
+
 from sympy.physics.quantum.fermion import FermionOp
 from sympy.physics.quantum import Dagger
 import matplotlib.pyplot as plt
@@ -10,6 +12,7 @@ from quspin.basis import spinful_fermion_basis_1d
 from quspin.operators import hamiltonian
 
 from second_quantization import fock_space
+from second_quantization import hilbert_space
 from second_quantization.fock_core.fock_basis import FockBasis
 
 import openfermion
@@ -131,54 +134,105 @@ def quspin_sparse_hamiltonian(L):
 
 
 # %%
-max_n = 8
 
-sparse_times_quspin = []
-sparse_times_sq = []
-sparse_times_of = []
+# %%
 
-basis_times_sq = []
-basis_times_quspin = []
-hamiltonian_times_of = []
+averages = 3
+max_n = 7
 
 ns = list(range(2, max_n + 1))
 
+sparse_times_quspin = [0] * len(ns)
+sparse_times_sq = [0] * len(ns)
+sparse_times_sq_new = [0] * len(ns)
+
+sparse_times_of = [0] * len(ns)
+
+basis_times_sq = [0] * len(ns)
+basis_times_sq_new = [0] * len(ns)
+
+basis_times_quspin = [0] * len(ns)
+hamiltonian_times_of = [0] * len(ns)
+
+
 for i, n in enumerate(ns):
-    # Second quantization
-    H, ops = build_spinful_chain_hamiltonian(n)
-    operator_seq = fock_space.to_sequence(H, ops)
+    for _ in range(averages):
+        H, ops = build_spinful_chain_hamiltonian(n)
+        start_basis_sq = time.perf_counter()
+        operator_dict = hilbert_space.basis_operators(ops, sparse=True)
+        basis_times_sq[i] += time.perf_counter() - start_basis_sq
 
-    start_basis_sq = time.perf_counter()
-    FockBasis(2 * ns)
-    basis_times_sq.append(time.perf_counter() - start_basis_sq)
+        start_1 = time.perf_counter()
+        hilbert_space.to_matrix(
+            H, operators=ops, sparse=True, operator_dict=operator_dict
+        )
+        sparse_times_sq[i] += time.perf_counter() - start_1
 
-    start_1 = time.perf_counter()
-    operator_seq.compile(data_format="coo")
-    sparse_times_sq.append(time.perf_counter() - start_1)
+        del H, ops, operator_dict
+        gc.collect()
+    basis_times_sq[i] /= averages
+    sparse_times_sq[i] /= averages
+    # =========================
+    # Second Quantization
+    # =========================
+    for _ in range(averages):
+        H, ops = build_spinful_chain_hamiltonian(n)
+        operator_seq = fock_space.FermionSequence(H, sympy_operators=ops)
 
+        start_basis_sq = time.perf_counter()
+        FockBasis(2 * n)
+        basis_times_sq_new[i] += time.perf_counter() - start_basis_sq
+
+        start_1 = time.perf_counter()
+        operator_seq.compile(data_format="coo")
+        sparse_times_sq_new[i] += time.perf_counter() - start_1
+
+        # Clear memory
+        del H, ops, operator_seq
+        gc.collect()
+    basis_times_sq_new[i] /= averages
+    sparse_times_sq_new[i] /= averages
+    # =========================
     # QuSpin
-    static, basis, time_basis_qspin = quspin_sparse_hamiltonian(n)
-    basis_times_quspin.append(time_basis_qspin)
+    # =========================
+    for _ in range(averages):
+        static, basis, time_basis_qspin = quspin_sparse_hamiltonian(n)
+        basis_times_quspin[i] += time_basis_qspin
 
-    start_2 = time.perf_counter()
-    H_quspin = hamiltonian(static, [], basis=basis, dtype=np.float64)
-    H_sparse = H_quspin.as_sparse_format().static
-    sparse_times_quspin.append(time.perf_counter() - start_2)
+        start_2 = time.perf_counter()
+        H_quspin = hamiltonian(static, [], basis=basis, dtype=np.float64)
+        H_sparse = H_quspin.as_sparse_format().static
+        sparse_times_quspin[i] += time.perf_counter() - start_2
 
+        # Clear memory
+        del static, basis, H_quspin, H_sparse
+        gc.collect()
+    basis_times_quspin[i] /= averages
+    sparse_times_quspin[i] /= averages
+
+    # =========================
     # OpenFermion
-    # Same result as
-    # H = openfermion.fermi_hubbard(n, 1, 1, 1, periodic=False)
-    # H_sparse = get_sparse_operator(H)
-    start_of = time.perf_counter()
-    H = build_spinful_chain_hamiltonian_openfermion(n)
-    hamiltonian_times_of.append(time.perf_counter() - start_of)
-    H_JW = openfermion.jordan_wigner(H)
-    sparse_time_of = time.perf_counter()
-    H_sparse_openfermion = get_sparse_operator(H_JW)
-    sparse_times_of.append(time.perf_counter() - sparse_time_of)
+    # =========================
+    for _ in range(averages):
+        start_of = time.perf_counter()
+        H = build_spinful_chain_hamiltonian_openfermion(n)
+        hamiltonian_times_of[i] += time.perf_counter() - start_of
 
+        H_JW = openfermion.jordan_wigner(H)
+
+        sparse_time_of = time.perf_counter()
+        H_sparse_openfermion = get_sparse_operator(H_JW)
+        sparse_times_of[i] += time.perf_counter() - sparse_time_of
+
+        # Clear memory
+        del H, H_JW, H_sparse_openfermion
+        gc.collect()
+    hamiltonian_times_of[i] /= averages
+    sparse_times_of[i] /= averages
     print(
-        f"n={n}: QUSPIN={sparse_times_quspin[-1]:.3f}s, SQ={sparse_times_sq[-1]:.3f}s, OF={sparse_times_of[-1]:.3f}s"
+        f"n={n}: QUSPIN={sparse_times_quspin[i]:.3f}s, "
+        f"SQ={sparse_times_sq[i]:.3f}s, "
+        f"OF={sparse_times_of[i]:.3f}s"
     )
 
 
@@ -188,9 +242,11 @@ fig, axs = plt.subplots(1, 2, figsize=(8, 3))
 ns = list(range(2, max_n + 1))
 ns = 2 * np.array(ns)
 # Panel 1: Matrix build times
-axs[0].plot(ns, sparse_times_sq, "o-", label="SQ (compile())")
+axs[0].plot(ns, sparse_times_sq, "o-", label="SQ (to_matrix())")
 axs[0].plot(ns, sparse_times_quspin, "o-", label="QuSpin")
 axs[0].plot(ns, sparse_times_of, "o-", label="OpenFermion")
+axs[0].plot(ns, sparse_times_sq_new, "o-", label="SQ (compile())")
+
 axs[0].set_yscale("log")
 # axs[0].loglog()
 axs[0].set_xlabel("Number of fermions")
@@ -199,9 +255,11 @@ axs[0].set_title("Sparse Matrix Build Time")
 axs[0].legend(frameon=False)
 
 # Panel 2: Basis build times
-axs[1].plot(ns, basis_times_sq, "o-", label="SQ")
-axs[1].plot(ns, basis_times_quspin, "o-", label="QuSpin")
-axs[1].plot(ns, hamiltonian_times_of, "o-", label="OpenFermion")
+axs[1].plot(ns, np.array(basis_times_sq), "o-", label="SQ")
+axs[1].plot(ns, np.array(basis_times_quspin), "o-", label="QuSpin")
+axs[1].plot(ns, np.array(sparse_times_of), "o-", label="OpenFermion")
+axs[1].plot(ns, np.array(basis_times_sq_new), "o-", label="SQ (compile())")
+
 axs[1].set_yscale("log")
 # axs[1].loglog()
 axs[1].set_xlabel("Number of fermions")

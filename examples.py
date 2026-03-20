@@ -60,7 +60,7 @@ def build_spinful_chain_hamiltonian(n):
     return H, ops_up + ops_dn
 
 
-N = 9
+N = 7
 ## Example: Built Sympy hamiltonian and FermionOps
 H_sympy, ops = build_spinful_chain_hamiltonian(N)
 H_sympy
@@ -69,12 +69,12 @@ H_sympy
 Initialize the FermionSequence object
 """
 H_seq = fock_space.FermionSequence(H_sympy, sympy_operators=ops)
-H_seq  ## This H is now a FermionSequence()
+H_seq
 
 """
 Compile the data representation
 """
-# %time H_data = H_seq.compile(data_format="coo")
+# %timeit H_data = H_seq.compile(data_format="coo")
 H_data = H_seq.compile(data_format="coo")
 H_data.get()  ## Obtain the array of data
 
@@ -87,7 +87,7 @@ H_data.update_values({t: 1.0, U: 2.5, mu: 3})  ## Aliased alternative for readab
 """
 Optional: compile the data representation in a non-ordered basis
 """
-basis = fock_space.FockBasis(18)  ## Create full basis for 18 fermionic sites
+basis = fock_space.FockBasis(14)  ## Create full basis for 18 fermionic sites
 even_basis = basis.restrict(ParityMask("even"))  ## Restrict the basis using ParityMask
 # %time H_data = H_seq.compile(even_basis, data_format="coo") ## Compile in the specific basis
 H_data = H_seq.compile(even_basis, data_format="coo")
@@ -115,7 +115,7 @@ H_data.get()  ## Get data
 
 
 """
-Implementation via FermionSequence() is fully self-contained in terms of implementing fermionic algebra without sympy
+Implementation via FermionSequence() is also fully self-contained in terms of implementing fermionic algebra without sympy
 and can be used to create and update Hamiltonians by itself.
 Multiple ways to initialize a sequenec are implemented, fastest is just to start with operators c_up/c_down and combine them to make terms.
 """
@@ -127,7 +127,7 @@ def build_H_fermi_hubbard(N):
     ECT = (c_down * (~c_down >> 1) + c_up * (~c_up >> 1)) >> np.arange(1, N - 1)
     ECT += ~ECT
 
-    ## Same operations are also implemented via dag() and extend()
+    ## The same operations are can be called via dag() and extend()
     MU = (c_down * (c_down.dag()) + c_up * (c_up.dag())).extend(np.arange(1, N))
 
     ## Any sequence of operators can be made just by adding and multiplying terms
@@ -137,7 +137,7 @@ def build_H_fermi_hubbard(N):
     return U, MU, ECT
 
 
-N = 2
+N = 5
 U, MU, ECT = build_H_fermi_hubbard(N)
 H = U + MU + ECT
 H
@@ -159,18 +159,25 @@ u, t, mu = sp.symbols("U, t,mu")
 H_symbolic_weights = u * U + mu * MU + t * ECT
 H_symbolic_weights
 
+# +
 """
 Once Hamiltonian is set, compile() creates a representation of the Hamiltonian matrix in chosen data_format, storing additional info for quickly updating values later.
 """
 U, MU, ECT = build_H_fermi_hubbard(N)
 H = U + MU + ECT
+H[U] = -10
+H[ECT] = 2
+H[MU[0]] = 5
+H[MU[1]] = 20
+
 H_data = H.compile(data_format="coo")
 """
 From here one can obtain the data array for doing things
 """
 H_data.get()  ## Returns the native data-type of whichever data backend was chosen (so that by default it returns the data-type the structure was optimized for)
+# -
 
-# # Potential benefit: faster fermionic operations
+# # Potential use: faster fermionic operations
 
 """
 The FermionSequence() does the fermionic algebra by extending and sorting lists of integers, which seems faster then relying on sympy's own functions
