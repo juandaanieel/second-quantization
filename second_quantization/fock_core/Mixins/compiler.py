@@ -1,9 +1,9 @@
 from ..fock_basis import FockBasis
 from ..fermion_data import FermionData
 
-from typing import List, Self, Any
 import numpy as np
 import sympy
+
 
 def common_prefix_length(a, b):
     """
@@ -14,6 +14,7 @@ def common_prefix_length(a, b):
         if a[i] != b[i]:
             return i
     return n
+
 
 class FermionDataCompilerMixin:
     """
@@ -29,6 +30,7 @@ class FermionDataCompilerMixin:
     - `self.sort_lexicographical(...)`
     - optionally `self._sympy_dict`
     """
+
     ####################################################
     #####      CONSTRUCT DATA REPRESENTATION       #####
     ####################################################
@@ -47,7 +49,9 @@ class FermionDataCompilerMixin:
 
         ## If no specific FockBasis was given, infer the size of the fockspace from the Hamiltonian itself
         elif fock_basis is None:
-            non_empty_subsequences = [sublist for sublist in self.oper_list if len(sublist)]
+            non_empty_subsequences = [
+                sublist for sublist in self.oper_list if len(sublist)
+            ]
             inferred_N = (
                 (max(max(sublist) for sublist in non_empty_subsequences) >> 1) + 1
                 if len(non_empty_subsequences)
