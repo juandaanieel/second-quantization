@@ -146,68 +146,6 @@ class FermionSequenceBase:
         """
         return ".".join(map(str, oper_list))
 
-    ###########################################
-    #####      SETTING SUBSEQUENCES       #####
-    ###########################################
-    _setitem_handlers = {
-        slice: "_set_slice",
-        tuple: "_set_tuple",
-        np.ndarray: "_set_ndarray",
-        int: "_set_int",
-        str: "_set_str",
-    }
-
-    def __setitem__(self, indexing, value: [int, float, complex]):
-        if isinstance(indexing, self.__class__):
-            old_val, str_list = self._set_opersequence(indexing, value)
-        else:
-            handler_func_name = self._setitem_handlers.get(
-                type(indexing), "_handle_set_default"
-            )
-            handler_func = getattr(self, handler_func_name)
-            old_val, str_list = handler_func(indexing, value)
-
-    def _handle_set_default(self, indexing, value):
-        raise TypeError(f"Setting value by {type(indexing).__name__} not supported")
-
-    def _set_slice(self, indexing, value):
-        print("Setting value by slice not yet supported")
-
-    def _set_tuple(self, indexing, value):
-        print("Setting value by tuple not yet supported")
-
-    def _set_ndarray(self, indexing, value):
-        print("Setting value by numpy array not yet supported")
-
-    def _set_int(self, indexing, value):
-        print("Setting value by int not yet supported")
-
-    def _set_str(self, indexing, value):
-        print("Setting value by str not yet supported")
-
-    def _set_opersequence(self, indexing, value):
-        old_value = self.weights[self.oper_list.index(indexing.oper_list[0])]
-        str_list = []
-        for i in range(len(indexing.oper_list)):
-            check_item = indexing.oper_list[i]
-            if check_item in self.oper_list:
-                self.weights[self.oper_list.index(check_item)] = value
-                str_list.append(self.oper_list_to_str(check_item))
-        return old_value, str_list
-
-    def __gt__(self, values: [int, float, complex, List, np.ndarray]):
-        if isinstance(values, (int, float, complex)):
-            self.weights = [values for i in range(len(self.oper_list))]
-        else:
-            if len(self.oper_list) != len(values):
-                raise ValueError(
-                    f"Length of input array ({len(values)}) does not match the number of subsequences ({len(self.oper_list)})"
-                )
-            self.weights = values
-        return self
-
-    set_values = __gt__  ## readable alias
-
     #####################
     ### ACT ON STATES ###
     #####################
@@ -254,6 +192,9 @@ class FermionSequenceBase:
             new_states: resulting new states
             signs: relative signs after applying the sequence of operators
         """
+        if len(oper_list) == 0:
+            return states, states, np.ones(len(states), dtype=np.int8)
+
         new_states = states
         for idx, oper in enumerate(oper_list):
             states_alive_filt, new_states, new_parity = self.act_oper(oper, new_states)

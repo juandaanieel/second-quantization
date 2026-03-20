@@ -7,8 +7,14 @@ from IPython.display import display
 
 class RepresentFermionsMixin:
     """
-    Class storing functionality for markdown printing of the FermionSequence class.
-    Relevant in case a FermionSequence was not created via sympy.
+    Mixin implementing human-readable and markdown representations for
+    fermionic operator sequences.
+
+    Expects the host class to provide:
+    - `self.oper_list`
+    - `self.weights`
+    - optionally `self.to_sympy()`
+    - optionally `self._sympy_operators`
     """
 
     #####################
@@ -105,6 +111,14 @@ class RepresentFermionsMixin:
 
 
 class RepresentFockBasisMixin:
+    """
+    Mixin implementing human-readable and markdown representations for Fock bases.
+
+    Expects the host class to provide:
+    - `self.states`
+    - `self.N`
+    """
+
     def vis_state(self, state):
         """
         Show a 'state' in a readable fashion
