@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Callable
 import sympy
 from sympy.physics.quantum import Dagger
 from sympy.physics.quantum.fermion import FermionOp
@@ -76,12 +76,11 @@ class FermionSequenceBase:
                 "SymPy parsing requires `sympy_operator_order` to be provided."
             )
         sympy_expr = sympy_expr.expand()
-        oper_list, weights, sympy_dict = [], [], {}
+        oper_list, weights = [], []
 
         for term in sympy_expr.as_ordered_terms():
             sublist = []
             coeff = 1
-            sympy_key = 1
             for factor in term.as_ordered_factors():
                 if factor in sympy_operator_order:
                     sublist.append(1 + 2 * sympy_operator_order.index(factor))
@@ -89,18 +88,14 @@ class FermionSequenceBase:
                     sublist.append(0 + 2 * sympy_operator_order.index(Dagger(factor)))
                 elif isinstance(factor, sympy.Symbol):
                     coeff *= factor
-                    sympy_key *= factor
                 else:
                     coeff *= factor
 
             sublist.reverse()
             oper_list.append(sublist)
             weights.append(coeff)
-            if sympy_key not in sympy_dict.keys():
-                sympy_dict[sympy_key] = (0, [])
-            sympy_dict[sympy_key][1].append(self.oper_list_to_str(sublist))
 
-        return oper_list, weights, sympy_dict
+        return oper_list, weights
 
     @staticmethod
     def _handle_parse_default(operators):
@@ -139,12 +134,12 @@ class FermionSequenceBase:
             return [FermionSequenceBase._operator_verbose(*operator_tuple)]
 
     @staticmethod
-    def oper_list_to_str(oper_list):
+    def oper_list_to_key(oper_list):
         """
         Convert a list of integers representing operators
-        to a string representation
+        to an immutable dictionary key representation.
         """
-        return ".".join(map(str, oper_list))
+        return tuple(oper_list)
 
     #####################
     ### ACT ON STATES ###
@@ -241,3 +236,8 @@ class FermionSequenceBase:
                 )
                 T_ij += np.conj(phi) @ trans_array
         return T_ij
+
+    def apply_to_weight(self, func: Callable, *args, **kwargs):
+        for idx, w in enumerate(self.weights):
+            self.weights[idx] = func(w, *args, **kwargs)
+        return self

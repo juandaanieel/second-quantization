@@ -31,9 +31,6 @@ class FermionSequence(
             Internal representation of the operator sequence in SymPy form.
             Only set when the object is initialized via SymPy-based constructors
             or conversion function.
-        _sympy_dict (optional):
-            Internal dictionary mapping symbolic prefactors to their corresponding operator subsequences.
-
     Notes:
         The integer representation of operators is as follows:
             - Even integers (0, 2, 4, ...) represent creation operators, where the integer divided by 2 gives the site index.
@@ -73,12 +70,9 @@ class FermionSequence(
 
         ## Sympy constructor path
         if len(operators) == 1 and isinstance(operators[0], sympy.Basic):
-            oper_list, parsed_weights, sympy_dict = self._parse_sympy(
-                operators[0], sympy_operators
-            )
+            oper_list, parsed_weights = self._parse_sympy(operators[0], sympy_operators)
             self.oper_list = oper_list
             self.weights = parsed_weights
-            self._sympy_dict = sympy_dict
             self._sympy_operators = sympy_operators
             return
 
@@ -156,6 +150,52 @@ class FermionSequence(
         oper_list = [seq for seq, _ in combined]
         weights = [weight for _, weight in combined]
         return oper_list, weights
+
+    @staticmethod
+    def sort_cache_friendly(oper_list, weights):
+        """
+        Sort subsequences in a prefix-aware order that is friendlier to the
+        single-prefix compile cache than plain lexicographic sorting.
+
+        The ordering keeps shallow siblings together before descending into
+        deeper descendants, e.g. `[5, 4], [5, 6], [5, 4, 1, 0]`.
+        """
+        root = {"terms": [], "children": {}}
+
+        for seq, weight in zip(deepcopy(oper_list), deepcopy(weights)):
+            node = root
+            for oper in seq:
+                node = node["children"].setdefault(oper, {"terms": [], "children": {}})
+            node["terms"].append((seq, weight))
+
+        ordered = []
+
+        def subtree_height(node):
+            if len(node["children"]) == 0:
+                return 0
+            return 1 + min(subtree_height(child) for child in node["children"].values())
+
+        def collapse(node):
+            ordered.extend(node["terms"])
+            child_items = sorted(
+                node["children"].items(),
+                key=lambda item: (subtree_height(item[1]), item[0]),
+            )
+
+            for _, child in child_items:
+                ordered.extend(child["terms"])
+
+            for _, child in child_items:
+                child_terms = child["terms"]
+                child["terms"] = []
+                collapse(child)
+                child["terms"] = child_terms
+
+        collapse(root)
+
+        new_oper_list = [seq for seq, _ in ordered]
+        new_weights = [weight for _, weight in ordered]
+        return new_oper_list, new_weights
 
     ###########################################
     #####      GETTING SUBSEQUENCES       #####
@@ -252,7 +292,7 @@ class FermionSequence(
             check_item = indexing.oper_list[i]
             if check_item in self.oper_list:
                 self.weights[self.oper_list.index(check_item)] = value
-                str_list.append(self.oper_list_to_str(check_item))
+                str_list.append(self.oper_list_to_key(check_item))
         return old_value, str_list
 
     def __gt__(self, values: [int, float, complex, List, np.ndarray]):

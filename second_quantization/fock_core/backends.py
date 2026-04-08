@@ -69,21 +69,33 @@ class _FermionDataArray(_FermionDataBackend):
         self.values = dense_data[2]
         self.parities = dense_data[3]
         self.type_dict = dense_data[4]
+        self.sympy_metadata = dense_data[5]
         self.data_array = self.to_array()
 
-    def update_values(
-        self, type_keys: list[str], old_val: complex, new_val: complex
-    ) -> None:
-        for key in type_keys:
-            type_slice = self.type_dict[key]
+    @staticmethod
+    def _evaluate_symbolic_term(term_data, param_values):
+        if "fast_symbol" in term_data:
+            coeff = term_data["fast_factor"] * param_values[term_data["fast_symbol"]]
+        else:
+            coeff = term_data["expr"].subs(param_values)
+        return complex(coeff)
+
+    def update_values(self, term_indices: set[int], param_values: dict) -> None:
+        for term_idx in term_indices:
+            term_data = self.sympy_metadata["symbolic_terms"][term_idx]
+            type_slice = term_data["slice"]
             rows = self.rows[type_slice]
             cols = self.cols[type_slice]
             signs = self.parities[type_slice]
 
+            old_coeff = term_data.get("current_value", 0.0)
+            new_coeff = self._evaluate_symbolic_term(term_data, param_values)
+            term_data["current_value"] = new_coeff
+
             np.add.at(
                 self.data_array,
                 (rows, cols),
-                signs * (new_val - old_val),
+                signs * (new_coeff - old_coeff),
             )
 
     def get(self) -> coo_array:
@@ -122,16 +134,27 @@ class _FermionDataSparseCOO(_FermionDataBackend):
         self.values = sparse_data[2]
         self.parities = sparse_data[3]
         self.type_dict = sparse_data[4]
+        self.sympy_metadata = sparse_data[5]
 
-    def update_values(
-        self, type_keys: list[str], old_val: complex, new_val: complex
-    ) -> None:
+    @staticmethod
+    def _evaluate_symbolic_term(term_data, param_values):
+        if "fast_symbol" in term_data:
+            coeff = term_data["fast_factor"] * param_values[term_data["fast_symbol"]]
+        else:
+            coeff = term_data["expr"].subs(param_values)
+        return complex(coeff)
+
+    def update_values(self, term_indices: set[int], param_values: dict) -> None:
         ## Set the new value for the relevant positions
-        for key in type_keys:
-            type_slice = self.type_dict[key]
+        for term_idx in term_indices:
+            term_data = self.sympy_metadata["symbolic_terms"][term_idx]
+            type_slice = term_data["slice"]
             signs = self.parities[type_slice]
-            new_values = signs * new_val
+            new_values = signs * self._evaluate_symbolic_term(term_data, param_values)
             self.values[type_slice] = new_values
+            term_data["current_value"] = (
+                new_values[0] / signs[0] if len(new_values) else 0.0
+            )
 
     def get(self) -> coo_array:
         """

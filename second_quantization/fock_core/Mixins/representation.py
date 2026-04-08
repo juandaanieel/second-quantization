@@ -109,6 +109,9 @@ class RepresentFermionsMixin:
             return operstr[4:]
         return operstr
 
+    def __str__(self):
+        return self._repr_markdown_()
+
 
 class RepresentFockBasisMixin:
     """

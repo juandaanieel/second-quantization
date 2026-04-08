@@ -135,10 +135,8 @@ def quspin_sparse_hamiltonian(L):
 
 # %%
 
-# %%
-
-averages = 3
-max_n = 7
+averages = 5
+max_n = 8
 
 ns = list(range(2, max_n + 1))
 
@@ -180,11 +178,11 @@ for i, n in enumerate(ns):
         operator_seq = fock_space.FermionSequence(H, sympy_operators=ops)
 
         start_basis_sq = time.perf_counter()
-        FockBasis(2 * n)
+        basis = FockBasis(2 * n)
         basis_times_sq_new[i] += time.perf_counter() - start_basis_sq
 
         start_1 = time.perf_counter()
-        operator_seq.compile(data_format="coo")
+        operator_seq.compile(basis, data_format="coo", cached=True)
         sparse_times_sq_new[i] += time.perf_counter() - start_1
 
         # Clear memory

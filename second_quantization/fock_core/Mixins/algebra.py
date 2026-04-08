@@ -21,7 +21,7 @@ class FermionAlgebraMixin:
     ######################################################
 
     ## Specify the non-self.__class__ types that are allowed to be added/multiplied to an FermionSequence
-    _allowed_types = (int, float, complex, sympy.Basic)
+    _allowed_types = (int, float, complex, sympy.Basic, np.number)
 
     def __add__(self, oper_sequence):
         if not isinstance(oper_sequence, (self.__class__, *self._allowed_types)):

@@ -10,12 +10,20 @@ class FockBasis(RepresentFockBasisMixin):
     """
 
     def __init__(self, states: [int, np.ndarray], N: int = None):
+        states_is_int = isinstance(states, int)
         self.states = self._parse_states(states)
         ## Ideally one does not calculate the hash dictionary if the fock states are fock ordered
         if N is None:
             N = int(np.ceil(np.log2(np.max(self.states) + 1)))
         self.N = N
-        self.is_ordered = True if len(self.states) == 2**N else False
+        if states_is_int:
+            self.is_ordered = True
+        else:
+            expected_states = np.arange(2**N, dtype=self.states.dtype)
+            self.is_ordered = bool(
+                len(self.states) == 2**N
+                and np.array_equal(self.states, expected_states)
+            )
         self.state_to_index = None
         self.state_index_array = None
         if not self.is_ordered:
