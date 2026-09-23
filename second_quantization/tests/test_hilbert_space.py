@@ -2,12 +2,11 @@ import numpy as np
 import scipy
 import pytest
 import sympy
-from functools import reduce
-from operator import mul
 import random
+import math
 from sympy.physics.quantum import Dagger
 from sympy.physics.quantum.fermion import FermionOp
-from sympy.physics.quantum.operatorordering import normal_ordered_form
+from sympy.physics.quantum.boson import BosonOp
 
 from second_quantization import hilbert_space
 
@@ -25,204 +24,53 @@ def get_n(request):
     return request.param
 
 
+def _dims_for_case(ops, truncation):
+    bosons = [op for op in ops if isinstance(op, BosonOp)]
+    if truncation is None:
+        trunc_list = []
+    elif isinstance(truncation, int):
+        trunc_list = [truncation] * len(bosons)
+    else:
+        trunc_list = list(truncation)
+
+    dims = []
+    boson_iter = iter(trunc_list)
+    for op in ops:
+        if isinstance(op, FermionOp):
+            dims.append(2)
+        else:
+            dims.append(next(boson_iter) + 1)
+    return dims
+
+
 @pytest.fixture(
     scope="module",
     params=[
-        (0, 1),
-        [(0, 1), (1, 2)],
-        (0, 1),
-        [(0, 1), (1, 2), (0, 2)],
-        [(1, 2), (2, 3), (3, 4), (0, 5), (1, 4)],
+        {
+            "label": "fermion",
+            "ops": [FermionOp("c0"), FermionOp("c1")],
+            "trunc": None,
+            "expr": Dagger(FermionOp("c0")) * FermionOp("c1"),
+        },
+        {
+            "label": "boson",
+            "ops": [BosonOp("b0"), BosonOp("b1")],
+            "trunc": [2, 3],
+            "expr": Dagger(BosonOp("b0")) * BosonOp("b1"),
+        },
+        {
+            "label": "mixed",
+            "ops": [FermionOp("c0"), BosonOp("b0"), FermionOp("c1")],
+            "trunc": [2],
+            "expr": Dagger(FermionOp("c0")) * BosonOp("b0"),
+        },
     ],
 )
-def get_combinations(request):
-    """
-    Fixture that provides various index combinations for hopping or pairing terms.
-
-    Yields:
-        Union[Tuple[int, int], List[Tuple[int, int]]]: Index pairs for operator interactions.
-    """
+def operator_case(request):
     return request.param
 
 
 # Builders
-
-
-def get_list_of_operators(get_n):
-    """
-    Generate a list of Fermion creation/annihilation operators.
-
-    Args:
-        get_n (int): Number of operators to generate.
-
-    Returns:
-        List[FermionOp]: List of Fermion operators.
-    """
-    return [FermionOp("c_i") for i in range(get_n)]
-
-
-def get_list_of_reals(get_n):
-    """
-    Generate a list of real-valued symbolic coefficients.
-
-    Args:
-        get_n (int): Number of symbols to generate.
-
-    Returns:
-        Tuple[sympy.Symbol]: Tuple of real-valued sympy symbols.
-    """
-    return sympy.symbols(["a_i" for i in range(get_n)], real=True)
-
-
-def get_diagonal_term(ops, symbs):
-    """
-    Construct a diagonal Hamiltonian term in second quantization.
-
-    Args:
-        ops (List[FermionOp]): List of Fermion operators.
-        symbs (List[sympy.Symbol]): Coefficients for each diagonal term.
-
-    Returns:
-        Expr: Diagonal Hamiltonian expression.
-    """
-    return sum([s * Dagger(op) * op for s, op in zip(symbs, ops)])
-
-
-def get_random_hopping(ops, indices):
-    """
-    Construct hopping terms between specified operator indices.
-
-    Args:
-        ops (List[FermionOp]): List of Fermion operators.
-        indices (Union[Tuple[int, int], List[Tuple[int, int]]]): Index pairs for hopping.
-
-    Returns:
-        Union[Expr, List[Expr]]: Hopping term(s).
-    """
-    if isinstance(indices, list):
-        return [get_random_hopping(ops, pair) for pair in indices]
-    i, j = indices
-    return Dagger(ops[i]) * ops[j] + Dagger(ops[j]) * ops[i]
-
-
-def get_random_pairing(ops, indices):
-    """
-    Construct pairing terms between specified operator indices.
-
-    Args:
-        ops (List[FermionOp]): List of Fermion operators.
-        indices (Union[Tuple[int, int], List[Tuple[int, int]]]): Index pairs for pairing.
-
-    Returns:
-        Union[Expr, List[Expr]]: Pairing term(s).
-    """
-    if isinstance(indices, list):
-        return [get_random_pairing(ops, pair) for pair in indices]
-    i, j = indices
-    return Dagger(ops[i]) * Dagger(ops[j]) + ops[j] * ops[i]
-
-
-def build_random_hamiltonian(get_n, get_combinations):
-    """
-    Construct a random Hamiltonian with diagonal, hopping, and pairing terms.
-
-    Args:
-        get_n (int): Number of Fermion operators.
-        get_combinations (List[Tuple[int, int]]): Index pairs for hopping/pairing.
-
-    Returns:
-        Expr: Full Hamiltonian expression.
-    """
-    ops = get_list_of_operators(get_n)
-    symbs = get_list_of_reals(get_n + len(get_combinations))
-    diag_symbs = symbs[:get_n]
-    hopping_symbs = symbs[get_n:]
-
-    diag = get_diagonal_term(ops, diag_symbs)
-    hopping = get_random_hopping(ops, get_combinations)
-    supercond = get_random_pairing(ops, get_combinations)
-
-    hamiltonian = (
-        diag
-        + sum([s * hop for s, hop in zip(hopping_symbs, hopping)])
-        + sum([s * pair for s, pair in zip(hopping_symbs, supercond)])
-    )
-    return hamiltonian, ops
-
-
-# Tests
-
-
-def test_output_types(get_n):
-    """
-    Verify that `basis_operators` returns correct types for sparse and dense formats.
-    """
-    list_of_fermions = get_list_of_operators(get_n)
-    basis_ops_sparse = hilbert_space.basis_operators(list_of_fermions, sparse=True)
-    basis_ops_dense = hilbert_space.basis_operators(list_of_fermions, sparse=False)
-
-    assert np.all([scipy.sparse.issparse(v) for v in basis_ops_sparse.values()])
-    assert np.all([isinstance(v, np.ndarray) for v in basis_ops_dense.values()])
-
-    ordered_keys_dense = sympy.ordered(basis_ops_dense.keys())
-    ordered_keys_sparse = sympy.ordered(basis_ops_sparse.keys())
-    ordered_input = sympy.ordered(list_of_fermions)
-
-    assert np.all([k1 == k2 for k1, k2 in zip(ordered_keys_dense, ordered_input)])
-    assert np.all([k1 == k2 for k1, k2 in zip(ordered_keys_sparse, ordered_input)])
-
-
-def test_idempotency():
-    """
-    Ensure that converting an operator expression to matrix and back preserves the expression.
-    """
-    fermions = c_0, c_1, c_2 = sympy.symbols("c_:3", cls=FermionOp)
-    expr = Dagger(c_1) * c_0 * c_2
-    mat = hilbert_space.to_matrix(expr, fermions, sparse=False)
-    ops = hilbert_space.to_operators(mat, fermions)
-    assert normal_ordered_form(ops) == normal_ordered_form(expr)
-
-
-def test_single_operator():
-    """
-    Check that a single Fermion operator is preserved through matrix conversion.
-    """
-    c = FermionOp("c")
-    mat = hilbert_space.to_matrix(c, [c], sparse=False)
-    ops = hilbert_space.to_operators(mat, [c])
-    assert ops == c
-
-
-def test_combinations(get_n):
-    """
-    Test that all combinations of a subset of Fermion operators are correctly generated.
-    """
-    # Create a list of Fermion operators for testing
-    list_of_fermions = [FermionOp(f"c_{i}") for i in range(get_n)]
-
-    # Take the first half of the operators as a subset
-    subset = list_of_fermions[: get_n // 2]
-
-    # Keep reference to all operators
-    all_operators = list_of_fermions
-
-    # Use dense matrices for this test
-    sparse = False
-
-    # Generate all possible combinations of the subset operators
-    all_combinations = hilbert_space._get_all_combinations(
-        subset, all_operators, sparse
-    )
-
-    # Test that individual operators from the subset are included
-    assert subset[0] in all_combinations
-
-    # Test that the product of all operators in the subset is included
-    assert reduce(mul, subset) in all_combinations
-
-    # Test combinations of non-adjacent operators (if subset has more than 1 element)
-    if get_n // 2 > 1:
-        assert reduce(mul, [subset[0], subset[-1]]) in all_combinations
 
 
 def test_partial_trace(get_n):
@@ -264,6 +112,276 @@ def test_partial_trace(get_n):
     assert np.isclose(np.trace(m_red), 1)
 
 
+@pytest.mark.parametrize("sparse", [False, True])
+def test_partial_trace_fermion_uses_symbolic_basis_sign(sparse):
+    c0, c1, c2 = [FermionOp(f"c_{i}") for i in range(3)]
+    operators = [c0, c1, c2]
+
+    vacuum = np.zeros(8)
+    vacuum[0] = 1
+    pair = hilbert_space.to_matrix(Dagger(c0) * Dagger(c1), operators, sparse)[1]
+    state = (vacuum + pair @ vacuum) / np.sqrt(2)
+    density = np.outer(state, state.conj())
+
+    p = hilbert_space.partial_trace_generators([c2], operators, sparse)
+    reduced = np.sum(
+        [p[:, i, :] @ density @ p[:, i, :].conj().T for i in range(p.shape[1])],
+        axis=0,
+    )
+
+    expected = np.zeros((4, 4))
+    expected[np.ix_([0, 3], [0, 3])] = 0.5
+    np.testing.assert_allclose(reduced, expected)
+
+
+def test_partial_trace_fermion_preserves_crossing_sign():
+    c0, c1, c2 = [FermionOp(f"c_{i}") for i in range(3)]
+    operators = [c0, c1, c2]
+
+    vacuum = np.zeros(8)
+    vacuum[0] = 1
+    state = (
+        hilbert_space.to_matrix(Dagger(c1), operators, False)[1] @ vacuum
+        + hilbert_space.to_matrix(
+            Dagger(c0) * Dagger(c1) * Dagger(c2), operators, False
+        )[1]
+        @ vacuum
+    ) / np.sqrt(2)
+    density = np.outer(state, state.conj())
+
+    p = hilbert_space.partial_trace_generators([c1], operators, False)
+    reduced = np.sum(
+        [p[:, i, :] @ density @ p[:, i, :].conj().T for i in range(p.shape[1])],
+        axis=0,
+    )
+
+    expected = np.zeros((4, 4))
+    expected[np.ix_([0, 3], [0, 3])] = [[0.5, -0.5], [-0.5, 0.5]]
+    np.testing.assert_allclose(reduced, expected)
+
+
+@pytest.mark.parametrize("sparse", [False, True])
+def test_partial_trace_boson_maps_unequal_truncations(sparse):
+    b0, b1, b2 = [BosonOp(f"b_{i}") for i in range(3)]
+    operators = [b0, b1, b2]
+    truncation = [1, 2, 1]
+
+    state = np.zeros(12)
+    state[4] = 1
+    density = np.outer(state, state.conj())
+
+    p = hilbert_space.partial_trace_generators(
+        [b1], operators, sparse, truncation=truncation
+    )
+    reduced = np.sum(
+        [p[:, i, :] @ density @ p[:, i, :].conj().T for i in range(p.shape[1])],
+        axis=0,
+    )
+
+    expected = np.zeros((4, 4))
+    expected[0, 0] = 1
+
+    assert p.shape == (4, 3, 12)
+    np.testing.assert_allclose(reduced, expected)
+
+
+def test_partial_trace_bosons_only(rng):
+    """Desired: tracing out a boson should preserve trace and use full bosonic dimension."""
+    b0, b1 = [BosonOp(f"b_{i}") for i in range(2)]
+    trunc = [2, 2]
+    ops = [b0, b1]
+
+    operator_dict = hilbert_space.basis_operators(ops, sparse=False, truncation=trunc)
+
+    p = hilbert_space.partial_trace_generators(
+        subset=[b1], all_operators=ops, sparse=False, operator_dict=operator_dict
+    )
+
+    dim_total = np.prod([t + 1 for t in trunc])
+    v = rng.random(dim_total)
+    v = v / np.linalg.norm(v)
+    m = np.outer(v, v.conj())
+
+    m_red = np.sum(
+        [p[:, i, :] @ m @ p[:, i, :].conj().T for i in range(p.shape[1])], axis=0
+    )
+
+    dim_keep = trunc[0] + 1
+    assert m_red.shape == (dim_keep, dim_keep)
+    assert np.isclose(np.trace(m_red), 1.0)
+
+
+def test_partial_trace_mixed_fermion_boson(rng):
+    """Desired: tracing out boson in mixed system should yield valid fermionic density matrix."""
+    c = FermionOp("c")
+    b = BosonOp("b")
+    trunc = [3]
+    ops = [c, b]
+
+    operator_dict = hilbert_space.basis_operators(ops, sparse=False, truncation=trunc)
+
+    p = hilbert_space.partial_trace_generators(
+        subset=[b], all_operators=ops, sparse=False, operator_dict=operator_dict
+    )
+
+    dim_total = 2 * (trunc[0] + 1)
+    v = rng.random(dim_total)
+    v = v / np.linalg.norm(v)
+    m = np.outer(v, v.conj())
+
+    m_red = np.sum(
+        [p[:, i, :] @ m @ p[:, i, :].conj().T for i in range(p.shape[1])], axis=0
+    )
+
+    assert m_red.shape == (2, 2)
+    assert np.isclose(np.trace(m_red), 1.0)
+
+
+@pytest.mark.parametrize("sparse", [False, True])
+def test_partial_trace_mixed_out_of_order_expression(sparse):
+    c0, c1 = [FermionOp(f"c_{i}") for i in range(2)]
+    b = BosonOp("b")
+    operators = [c0, b, c1]
+    truncation = [1]
+
+    vacuum = np.zeros(8)
+    vacuum[0] = 1
+    initial = (
+        hilbert_space.to_matrix(Dagger(c0), operators, sparse, truncation=truncation)[1]
+        @ vacuum
+    )
+
+    expressions = [
+        Dagger(c1) * c0 * Dagger(b),
+        -c0 * Dagger(c1) * Dagger(b),
+    ]
+    p = hilbert_space.partial_trace_generators(
+        [b], operators, sparse, truncation=truncation
+    )
+    reduced = []
+    for expression in expressions:
+        state = (
+            hilbert_space.to_matrix(
+                expression, operators, sparse, truncation=truncation
+            )[1]
+            @ initial
+        )
+        density = np.outer(state, state.conj())
+        reduced.append(
+            np.sum(
+                [p[:, i, :] @ density @ p[:, i, :].conj().T for i in range(p.shape[1])],
+                axis=0,
+            )
+        )
+
+    expected = np.zeros((4, 4))
+    expected[1, 1] = 1
+    np.testing.assert_allclose(reduced[0], reduced[1])
+    np.testing.assert_allclose(reduced[0], expected)
+
+
+@pytest.mark.parametrize("sparse", [False, True])
+def test_partial_trace_interleaved_remaining_modes(sparse):
+    c = FermionOp("c")
+    a, b = sympy.symbols("a b", cls=BosonOp)
+    state = np.arange(12) + 1j * np.arange(12)[::-1]
+    state /= np.linalg.norm(state)
+    density = np.outer(state, state.conj())
+    p = hilbert_space.partial_trace_generators(
+        [b], [a, c, b], sparse=sparse, truncation=[2, 1]
+    )
+    reduced = sum(p[:, i, :] @ density @ p[:, i, :].conj().T for i in range(p.shape[1]))
+    expected = np.trace(density.reshape(6, 2, 6, 2), axis1=1, axis2=3)
+    np.testing.assert_allclose(reduced, expected)
+
+
+def test_basis_and_parity_operator_mixed_cases(operator_case):
+    ops = operator_case["ops"]
+    trunc = operator_case["trunc"]
+    dims = _dims_for_case(ops, trunc)
+    total_dim = int(np.prod(dims))
+
+    fermion_dict, boson_dict = hilbert_space.basis_operators(
+        ops, sparse=False, truncation=trunc
+    )
+    assert 1 in fermion_dict
+    assert 1 in boson_dict
+
+    parity_dense = hilbert_space.parity_operator(ops, sparse=False, truncation=trunc)
+    parity_sparse = hilbert_space.parity_operator(ops, sparse=True, truncation=trunc)
+
+    assert parity_dense.shape == (total_dim, total_dim)
+    np.testing.assert_array_equal(parity_dense, parity_sparse.toarray())
+
+
+def test_to_matrix_mixed_cases(operator_case):
+    ops = operator_case["ops"]
+    trunc = operator_case["trunc"]
+    dims = _dims_for_case(ops, trunc)
+    total_dim = int(np.prod(dims))
+    expr = operator_case["expr"]
+
+    operator_dict = hilbert_space.basis_operators(ops, sparse=False, truncation=trunc)
+    mats_default = hilbert_space.to_matrix(expr, ops, sparse=False, truncation=trunc)
+    mats_cached = hilbert_space.to_matrix(
+        expr, ops, sparse=False, truncation=trunc, operator_dict=operator_dict
+    )
+
+    assert mats_default.keys() == mats_cached.keys()
+    for key in mats_default:
+        np.testing.assert_allclose(mats_default[key], mats_cached[key])
+        assert mats_default[key].shape == (total_dim, total_dim)
+
+
+@pytest.mark.parametrize("sparse", [False, True])
+def test_numeric_matrix_round_trip(operator_case, sparse, as_dense):
+    ops = operator_case["ops"]
+    truncation = operator_case["trunc"]
+    dimension = int(np.prod(_dims_for_case(ops, truncation)))
+    rng = np.random.default_rng(42)
+    matrix = rng.normal(size=(dimension, dimension)) + 1j * rng.normal(
+        size=(dimension, dimension)
+    )
+    supplied = scipy.sparse.csr_array(matrix) if sparse else matrix
+    expression = hilbert_space.to_operators(supplied, ops, truncation=truncation)
+    recovered = hilbert_space.to_matrix(
+        expression, ops, sparse=sparse, truncation=truncation
+    )
+    actual = sum(complex(key) * as_dense(value) for key, value in recovered.items())
+    np.testing.assert_allclose(actual, matrix, rtol=1e-12, atol=1e-12)
+
+
+def test_symbolic_basis_and_powers_mixed_cases(operator_case):
+    ops = operator_case["ops"]
+    trunc = operator_case["trunc"]
+    dims = _dims_for_case(ops, trunc)
+    total_dim = int(np.prod(dims))
+    trunc_arg = trunc if trunc is not None else 1
+
+    powers = hilbert_space._generate_all_powers(ops, trunc_arg)
+    assert len(powers) == total_dim
+
+    symbols = hilbert_space.symbolic_basis(ops, truncation=trunc_arg)
+    assert len(symbols) == total_dim
+    assert symbols[0] == sympy.S.One
+
+
+def test_make_dict_callable_mixed_cases(operator_case):
+    ops = operator_case["ops"]
+    trunc = operator_case["trunc"]
+    expr = operator_case["expr"]
+    dims = _dims_for_case(ops, trunc)
+    total_dim = int(np.prod(dims))
+
+    mat_dict = hilbert_space.to_matrix(expr, ops, sparse=False, truncation=trunc)
+    func = hilbert_space.make_dict_callable(mat_dict)
+
+    result = func() if func.__signature__.parameters else func
+    out = result if isinstance(result, np.ndarray) else func()
+    assert isinstance(out, np.ndarray)
+    assert out.shape == (total_dim, total_dim)
+
+
 def test_symbolic_basis_matrix_action():
     """
     Test that the symbolic basis elements correctly map to their corresponding
@@ -282,7 +400,7 @@ def test_symbolic_basis_matrix_action():
         fermions = [FermionOp(f"c_{i}") for i in range(n_fermions)]
 
         # Generate symbolic basis
-        symbolic_states = hilbert_space.symbolic_basis(fermions)
+        symbolic_states = hilbert_space.symbolic_basis(fermions, truncation=1)
         print(symbolic_states)
 
         # The vacuum state is always the first element (all zeros)
@@ -367,22 +485,28 @@ def test_symbolic_basis_properties():
     assert symbolic_states[3] == expected_state_3
 
 
-def test_string_basis_properties():
-    """
-    Test the string basis generation.
-    """
-    fermions = [FermionOp(f"c_{i}") for i in range(3)]
-    strings = hilbert_space.string_basis(fermions)
+@pytest.mark.parametrize("sparse", [False, True])
+@pytest.mark.parametrize("interleaved", [False, True])
+def test_symbolic_basis_mixed_matrix_action(sparse, interleaved):
+    c0, c1 = sympy.symbols("c0:2", cls=FermionOp)
+    a, b = sympy.symbols("a b", cls=BosonOp)
+    operators = [a, c0, b, c1] if interleaved else [c0, c1, a, b]
+    states = hilbert_space.symbolic_basis(operators, truncation=[2, 1])
+    identity = np.eye(24)
 
-    # Should have 2^n strings
-    assert len(strings) == 2**3
+    for index, state in enumerate(states):
+        occupations = np.unravel_index(index, (2, 2, 3, 2))
+        norm = math.sqrt(math.prod(math.factorial(n) for n in occupations[2:]))
+        matrix = hilbert_space.to_matrix(
+            state, operators, sparse=sparse, truncation=[2, 1]
+        )[1]
+        np.testing.assert_allclose(matrix @ identity[0], norm * identity[index])
 
-    # Check specific strings
-    assert strings[0] == "000"  # vacuum
-    assert strings[1] == "001"  # first fermion occupied
-    assert strings[2] == "010"  # second fermion occupied
-    assert strings[3] == "011"  # first and second fermions occupied
-    assert strings[7] == "111"  # all fermions occupied
+
+@pytest.mark.parametrize("truncation", [None, [2, 1]])
+def test_symbolic_basis_invalid_truncation(truncation):
+    with pytest.raises(ValueError):
+        hilbert_space.symbolic_basis([BosonOp("b")], truncation=truncation)
 
 
 # Tests for make_dict_callable function
@@ -496,30 +620,19 @@ def test_make_dict_callable_cosine_and_complex():
 
     # Manually compute expected result
     # First, get the matrix representations for each term separately
-    term1_dict = hilbert_space.to_matrix(term1, [c, d], sparse=False)
-    term2_dict = hilbert_space.to_matrix(term2, [c, d], sparse=False)
+
+    # term1_dict = hilbert_space.to_matrix(term1, [c, d], sparse=False)
+    # term2_dict = hilbert_space.to_matrix(term2, [c, d], sparse=False)
 
     # Extract matrices and compute expected result
-    expected = np.zeros((4, 4), dtype=complex)
-
-    # Add contribution from cosine term
-    for expr, matrix in term1_dict.items():
-        if expr == sympy.cos(t):
-            expected += np.cos(t_val) * matrix
-        else:
-            # Handle other symbolic expressions if any
-            expected += float(expr.subs(t, t_val)) * matrix
-
-    # Add contribution from complex constant term
-    for expr, matrix in term2_dict.items():
-        if expr == complex_coeff:
-            expected += complex_coeff * matrix
-        else:
-            # Handle other expressions
-            if hasattr(expr, "subs"):
-                expected += complex(expr.subs(t, t_val)) * matrix
-            else:
-                expected += complex(expr) * matrix
+    expected = np.zeros_like(result)
+    for prefactor, matrix in matrix_dict.items():
+        value = (
+            complex(prefactor.subs(t, t_val))
+            if hasattr(prefactor, "subs")
+            else complex(prefactor)
+        )
+        expected += value * matrix
 
     # Verify the result matches expected
     np.testing.assert_array_almost_equal(result, expected)
@@ -556,44 +669,6 @@ def test_make_dict_callable_dummy_variable_error():
         hilbert_space.make_dict_callable(hamiltonian_dict)
 
 
-# Alternative test that might be more reliable for triggering Dummy variables
-def test_make_dict_callable_dummy_variable_error_alternative():
-    """Alternative test for Dummy variable error using reserved Python keywords."""
-    # Try using Python reserved keywords or names that conflict with numpy
-    try:
-        # Create a symbol with a name that might conflict
-        problematic_symbol = sympy.Symbol(
-            "lambda", real=True
-        )  # 'lambda' is a Python keyword
-        matrix = np.eye(2)
-
-        hamiltonian_dict = {problematic_symbol: matrix}
-
-        # This might trigger the Dummy variable error
-        with pytest.raises(
-            ValueError,
-            match="Variable names must be chosen such that they are not lambdified to Dummy variables",
-        ):
-            hilbert_space.make_dict_callable(hamiltonian_dict)
-
-    except ValueError:
-        # If the first attempt works (raises the expected error), we're good
-        pass
-    except AssertionError:
-        # If it doesn't raise the error, try another approach
-        # Create a symbol that starts with underscore and contains 'Dummy'
-        problematic_symbol2 = sympy.Symbol("__Dummy__var__", real=True)
-        matrix = np.eye(2)
-
-        hamiltonian_dict = {problematic_symbol2: matrix}
-
-        with pytest.raises(
-            ValueError,
-            match="Variable names must be chosen such that they are not lambdified to Dummy variables",
-        ):
-            hilbert_space.make_dict_callable(hamiltonian_dict)
-
-
 def test_parity_operator_output_types():
     """Test that parity_operator returns the correct output types for sparse and dense matrices."""
     # Test with different numbers of operators
@@ -623,7 +698,6 @@ def test_parity_operator_output_types():
             2**n_ops,
         ), f"Shape should be ({2**n_ops}, {2**n_ops}) for {n_ops} operators"
 
-        # Test that sparse and dense versions have the same values
         np.testing.assert_array_equal(
             parity_dense,
             parity_sparse.toarray(),
@@ -660,3 +734,57 @@ def test_parity_operator_correctness():
     np.testing.assert_array_equal(
         parity_3, expected_3, err_msg="Three operator parity incorrect"
     )
+
+
+def test_basis_operators_invalid_inputs():
+    """Non-operators and missing boson truncation should error."""
+    with pytest.raises(ValueError):
+        hilbert_space.basis_operators(["not-an-operator"], sparse=False)
+
+    b = BosonOp("b")
+    with pytest.raises(ValueError):
+        hilbert_space.basis_operators([b], sparse=False)
+
+
+def test_parity_operator_requires_truncation_for_bosons():
+    b = BosonOp("b")
+    with pytest.raises(ValueError):
+        hilbert_space.parity_operator([b], sparse=False)
+
+
+def test_parity_operator_mixed_sparse_matches_dense():
+    c = FermionOp("c")
+    b = BosonOp("b")
+    trunc = [3]
+    dense = hilbert_space.parity_operator([c, b], sparse=False, truncation=trunc)
+    sparse_parity = hilbert_space.parity_operator([c, b], sparse=True, truncation=trunc)
+    np.testing.assert_array_equal(dense, sparse_parity.toarray())
+
+
+@pytest.mark.parametrize("sparse", [False, True])
+def test_parity_operator_mixed_occupations(sparse, as_dense):
+    c0, c1 = sympy.symbols("c0:2", cls=FermionOp)
+    a, b = sympy.symbols("a b", cls=BosonOp)
+    parity = hilbert_space.parity_operator(
+        [a, c0, b, c1], sparse=sparse, truncation=[2, 1]
+    )
+    expected = np.diag([sum(state) % 2 for state in np.ndindex(2, 2, 3, 2)])
+    np.testing.assert_array_equal(as_dense(parity), expected)
+
+
+def test_to_matrix_with_precomputed_operator_dict():
+    c = FermionOp("c")
+    b = BosonOp("b")
+    ops = [c, b]
+    trunc = 3
+    expr = Dagger(c) * b + Dagger(b) * c
+
+    operator_dict = hilbert_space.basis_operators(ops, sparse=False, truncation=trunc)
+    mat_default = hilbert_space.to_matrix(expr, ops, sparse=False, truncation=trunc)
+    mat_with_dict = hilbert_space.to_matrix(
+        expr, ops, sparse=False, truncation=trunc, operator_dict=operator_dict
+    )
+
+    assert mat_default.keys() == mat_with_dict.keys()
+    for key in mat_default:
+        np.testing.assert_allclose(mat_default[key], mat_with_dict[key])

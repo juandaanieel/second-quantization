@@ -41,6 +41,7 @@ MANIFEST
 *.out
 
 ### Testing and coverage reports
+cov.xml
 htmlcov/
 .tox/
 .coverage

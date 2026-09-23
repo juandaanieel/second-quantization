@@ -41,5 +41,6 @@ nav:
   - Tutorials:
       - Interacting Kitaev Chain: tutorials/interacting_kitaev.md
       - Interfacing QuTiP: tutorials/interfacing_qutip.md
+      - Exploring Jaynes-Cummings: tutorials/jaynes_cummings.md
   - Performance: performance.md
   - API Reference: API.md

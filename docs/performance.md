@@ -23,12 +23,18 @@ from timeit import timeit
 import numpy as np
 import sympy
 from sympy.physics.quantum.fermion import FermionOp
+from sympy.physics.quantum.boson import BosonOp
 from sympy.physics.quantum import Dagger
 import matplotlib.pyplot as plt
 
 from second_quantization import hilbert_space
 
-from quspin.basis import spinful_fermion_basis_1d
+from quspin.basis import (
+    boson_basis_1d,
+    spinful_fermion_basis_1d,
+    spinless_fermion_basis_1d,
+    tensor_basis,
+)
 from quspin.operators import hamiltonian
 
 import openfermion
@@ -254,3 +260,167 @@ This makes `second_quantization` particularly well-suited for:
 ## Summary
 
 `second_quantization` delivers competitive performance while offering a flexible, symbolic workflow. The ability to separate symbolic construction from numerical evaluation makes it an excellent choice for research workflows that require exploring multiple parameter regimes.
+
+# Mixed Fermion-Boson Construction
+
+To compare mixed particle systems, we consider a chain of coupled quantum dots.
+Each dot is a fermionic mode `c_i` that is coupled to its own bosonic resonator
+mode `a_i`. The Hamiltonian is
+
+$$
+H = -t \sum_i \left(c_i^\dagger c_{i+1} + c_{i+1}^\dagger c_i\right)
++ \sum_i \left[\epsilon c_i^\dagger c_i
++ \omega_r a_i^\dagger a_i
++ g\left(c_i^\dagger a_i + c_i a_i^\dagger\right)\right].
+$$
+
+The first term couples neighboring dots. The remaining terms are one
+Jaynes-Cummings Hamiltonian per dot-resonator pair. We truncate each resonator
+to `photon_cutoff + 1` states, so the total Hilbert-space dimension is
+`(2 * (photon_cutoff + 1)) ** n` for `n` dots.
+
+## Define the Test System
+
+For `second_quantization`, this is quite straight forward:
+
+```python
+def build_dot_resonator_chain_hamiltonian(n):
+    """Build a chain of dots, each coupled to one resonator."""
+    hopping, dot_energy, resonator_energy, coupling = sympy.symbols(
+        "t epsilon omega_r g", real=True
+    )
+    dots = [FermionOp(f"c_{i}") for i in range(n)]
+    resonators = [BosonOp(f"a_{i}") for i in range(n)]
+
+    symbolic_hamiltonian = sum(
+        dot_energy * Dagger(dot) * dot
+        + resonator_energy * Dagger(resonator) * resonator
+        + coupling * (Dagger(dot) * resonator + dot * Dagger(resonator))
+        for dot, resonator in zip(dots, resonators)
+    )
+    symbolic_hamiltonian += -hopping * sum(
+        Dagger(left) * right + Dagger(right) * left
+        for left, right in zip(dots, dots[1:])
+    )
+
+    return symbolic_hamiltonian, dots + resonators
+```
+
+## QuSpin Implementation
+
+QuSpin uses a tensor basis with the fermionic dot basis first and the bosonic
+resonator basis second. Its operator strings use `|` to separate the two
+subspaces: `"+-|"` is a fermionic hopping term and `"+|-"` is the
+dot-resonator coupling term $c_i^\dagger a_i$.
+
+```python
+def quspin_dot_resonator_chain(n, photon_cutoff):
+    hopping = 1.0
+    dot_energy = 0.5
+    resonator_energy = 1.0
+    coupling = 0.2
+
+    dot_basis = spinless_fermion_basis_1d(L=n)
+    resonator_basis = boson_basis_1d(L=n, sps=photon_cutoff + 1)
+    basis = tensor_basis(dot_basis, resonator_basis)
+
+    hop_left = [[hopping, i, i + 1] for i in range(n - 1)]
+    hop_right = [[-hopping, i, i + 1] for i in range(n - 1)]
+    dot_onsite = [[dot_energy, i] for i in range(n)]
+    resonator_onsite = [[resonator_energy, i] for i in range(n)]
+    dot_resonator = [[coupling, i, i] for i in range(n)]
+
+    static = [
+        ["+-|", hop_left],
+        ["-+|", hop_right],
+        ["n|", dot_onsite],
+        ["|n", resonator_onsite],
+        ["+|-", dot_resonator],
+        ["-|+", dot_resonator],
+    ]
+    return static, basis
+```
+
+## Results
+
+### Scaling with System Size
+
+```python tags=["hide-output"]
+def mixed_matrix_times(n, photon_cutoff):
+    """Time sparse-matrix construction after each package builds its basis."""
+    symbolic_hamiltonian, operators = build_dot_resonator_chain_hamiltonian(n)
+    operator_dict = hilbert_space.basis_operators(
+        operators,
+        sparse=True,
+        truncation=photon_cutoff,
+    )
+
+    start = time.time()
+    hilbert_space.to_matrix(
+        symbolic_hamiltonian,
+        operators=operators,
+        sparse=True,
+        operator_dict=operator_dict,
+        truncation=photon_cutoff,
+    )
+    time_sq = time.time() - start
+
+    static, basis = quspin_dot_resonator_chain(n, photon_cutoff)
+    start = time.time()
+    quspin_hamiltonian = hamiltonian(static, [], basis=basis, dtype=np.float64)
+    quspin_hamiltonian.as_sparse_format().static
+    time_quspin = time.time() - start
+
+    return time_sq, time_quspin
+
+
+size_cutoff = 2
+mixed_sizes = list(range(1, 6))
+mixed_times_sq = []
+mixed_times_quspin = []
+
+for n in mixed_sizes:
+    time_sq, time_quspin = mixed_matrix_times(n, size_cutoff)
+    mixed_times_sq.append(time_sq)
+    mixed_times_quspin.append(time_quspin)
+```
+
+### Scaling with Resonator Truncation
+
+We now fix the chain to three dot-resonator pairs and vary the maximum photon
+number retained for each resonator.
+
+```python tags=["hide-output"]
+fixed_size = 3
+truncations = list(range(1, 6))
+truncation_times_sq = []
+truncation_times_quspin = []
+
+for photon_cutoff in truncations:
+    time_sq, time_quspin = mixed_matrix_times(fixed_size, photon_cutoff)
+    truncation_times_sq.append(time_sq)
+    truncation_times_quspin.append(time_quspin)
+```
+
+```python tags=["hide-input"]
+fig, axes = plt.subplots(ncols=2, figsize=(8, 3))
+
+axes[0].plot(mixed_sizes, mixed_times_sq, "o--", label="SQ (to_matrix)")
+axes[0].plot(mixed_sizes, mixed_times_quspin, "o-.", label="QuSpin")
+axes[0].set_yscale("log")
+axes[0].set_xlabel("Number of dot-resonator pairs")
+axes[0].set_ylabel("Time (s)")
+axes[0].set_title(f"Fixed cutoff: {size_cutoff}")
+axes[0].legend(frameon=False)
+
+axes[1].plot(truncations, truncation_times_sq, "o--", label="SQ (to_matrix)")
+axes[1].plot(truncations, truncation_times_quspin, "o-.", label="QuSpin")
+axes[1].set_yscale("log")
+axes[1].set_xlabel("Maximum photon number")
+axes[1].set_ylabel("Time (s)")
+axes[1].set_title(f"Fixed pairs: {fixed_size}")
+axes[1].legend(frameon=False)
+
+plt.tight_layout()
+plt.show()
+```

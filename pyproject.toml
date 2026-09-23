@@ -13,9 +13,9 @@ keywords = ["second quantization", "quantum", "operators", "linear algebra"]
 dynamic = ["version"]
 
 dependencies = [
-  "numpy>=2.0",
-  "sympy>=1.13",
-  "scipy>=1.8",
+  "numpy>=2.2.0",
+  "sympy>=1.13.0",
+  "scipy>=1.14.0",
   "packaging>=22.0",
 ]
 
@@ -72,6 +72,15 @@ exclude = ["tests", "docs", ".github", ".gitlab-ci.yml"]
 skip = "*.cls,*.bst,*.bib,*.lock"
 ignore-words-list = "nwo,groth,braket,bra,ket,Araya,Day"
 
+[tool.pytest.ini_options]
+addopts = ["--cov=second_quantization", "--cov-report=term-missing", "--cov-report=xml:cov.xml"]
+
+[tool.coverage.run]
+relative_files = true
+
+[tool.coverage.xml]
+output = "cov.xml"
+
 # ---------- Pixi (envs + tasks) ----------
 [tool.pixi.workspace]
 channels = ["https://prefix.dev/conda-forge"]
@@ -80,9 +89,9 @@ platforms = ["osx-arm64", "linux-64", "win-64"]
 # Shared dev tooling for the default env
 [tool.pixi.dependencies]
 python = ">=3.12,<3.13"
-numpy = ">=2.0.0,<2.1.0"
+numpy = ">=2.2.0,<2.4.0"
 sympy = ">=1.13.0,<1.15.0"
-scipy = ">=1.11,<2"
+scipy = ">=1.14.0,<1.16.0"
 pytest = ">=8.3.4,<9"
 pytest-cov = ">=6,<7"
 ruff = ">=0.9.6,<0.10"
@@ -115,7 +124,6 @@ quspin = ">=1.0.0,<2"
 
 [tool.pixi.feature.docs.target.osx-arm64.pypi-dependencies]
 quspin = ">=1.0.0,<2"
-
 
 [tool.pixi.feature.docs.tasks]
 docs-serve = "mkdocs serve"

@@ -7,8 +7,8 @@ A Python package for seamless conversion between symbolic second-quantized opera
 
 ## Features
 
-- **Symbolic to Matrix**: Convert fermionic operators (creation/annihilation) to matrix form using Jordan-Wigner transformation
-- **Matrix to Symbolic**: Decompose matrices back into fermionic operator expressions
+- **Symbolic to Matrix**: Convert fermionic, truncated bosonic, and mixed operator expressions to matrices
+- **Matrix to Symbolic**: Decompose matrices back into normal-ordered operator expressions
 - **Efficient**: Supports both dense and sparse matrix representations for large Hilbert spaces
 - **Flexible**: Handle parameterized Hamiltonians with symbolic coefficients
 - **Fast Parameter Sweeps**: Reuse basis operators for different parameter values
@@ -60,22 +60,22 @@ Full documentation with tutorials and API reference is available at:
 ## Core Functions
 
 ### `hilbert_space.to_matrix()`
-Convert symbolic fermionic expressions to matrix form using Jordan-Wigner transformation.
+Convert fermionic and bosonic expressions to matrices using Jordan-Wigner and truncated occupation bases.
 
 ### `hilbert_space.make_dict_callable()`
 Create efficient callable functions from symbolic Hamiltonians for parameter sweeps.
 
 ### `hilbert_space.to_operators()`
-Decompose matrices back into symbolic fermionic operator expressions.
+Decompose matrices back into symbolic fermionic, bosonic, or mixed operator expressions.
 
 ### `hilbert_space.basis_operators()`
-Generate basis for fermionic Hilbert spaces.
+Generate fermionic and bosonic matrix bases, returned as a pair of dictionaries.
 
 ## Requirements
 
 - Python ≥ 3.11
-- NumPy ≥ 2.0
-- SciPy ≥ 1.8
+- NumPy ≥ 2.2
+- SciPy ≥ 1.14
 - SymPy ≥ 1.13
 
 ## Contributing
@@ -84,4 +84,4 @@ Contributions are welcome! Please see our [repository](https://gitlab.kwant-proj
 
 ## License
 
-BSD 3-Clause License. See [LICENSE](LICENSE) for details.
+BSD 2-Clause License. See [LICENSE](LICENSE) for details, including the MIT notice for the adapted Pauli decomposition.
