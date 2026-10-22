@@ -88,6 +88,9 @@ platforms = ["osx-arm64", "linux-64", "win-64"]
 
 # Shared dev tooling for the default env
 [tool.pixi.dependencies]
+uv = ">=0.13.4"
+certifi = ">=2026.10.19"
+ca-certificates = ">=2026.10.19"
 python = ">=3.12,<3.13"
 numpy = ">=2.2.0,<2.4.0"
 sympy = ">=1.13.0,<1.15.0"
